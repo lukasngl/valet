@@ -11,7 +11,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/lukasngl/client-secret-operator/internal/adapter"
+	"github.com/lukasngl/secret-manager/internal/adapter"
 )
 
 func main() {

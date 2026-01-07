@@ -1,4 +1,4 @@
-module github.com/lukasngl/client-secret-operator
+module github.com/lukasngl/secret-manager
 
 go 1.23.0
 

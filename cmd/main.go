@@ -17,7 +17,7 @@ limitations under the License.
 package main
 
 import (
-	"github.com/lukasngl/client-secret-operator/pkg/operator"
+	"github.com/lukasngl/secret-manager/pkg/operator"
 )
 
 func main() {

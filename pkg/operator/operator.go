@@ -21,9 +21,9 @@ import (
 	// Import for auth plugins (also registers --kubeconfig flag)
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
-	secretmanagerv1alpha1 "github.com/lukasngl/client-secret-operator/api/v1alpha1"
-	"github.com/lukasngl/client-secret-operator/internal/adapter"
-	"github.com/lukasngl/client-secret-operator/internal/controller"
+	secretmanagerv1alpha1 "github.com/lukasngl/secret-manager/api/v1alpha1"
+	"github.com/lukasngl/secret-manager/internal/adapter"
+	"github.com/lukasngl/secret-manager/internal/controller"
 )
 
 var (

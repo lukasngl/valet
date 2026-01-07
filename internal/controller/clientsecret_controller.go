@@ -21,8 +21,8 @@ import (
 	"fmt"
 	"time"
 
-	secretmanagerv1alpha1 "github.com/lukasngl/client-secret-operator/api/v1alpha1"
-	"github.com/lukasngl/client-secret-operator/internal/adapter"
+	secretmanagerv1alpha1 "github.com/lukasngl/secret-manager/api/v1alpha1"
+	"github.com/lukasngl/secret-manager/internal/adapter"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

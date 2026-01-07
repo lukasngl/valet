@@ -8,8 +8,8 @@ layout:
 plugins:
   manifests.sdk.operatorframework.io/v2: {}
   scorecard.sdk.operatorframework.io/v2: {}
-projectName: client-secret-operator
-repo: github.com/lukasngl/client-secret-operator
+projectName: secret-manager
+repo: github.com/lukasngl/secret-manager
 version: "3"
 resources:
 - api:
@@ -19,5 +19,5 @@ resources:
   domain: ngl.cx
   group: secret-manager
   kind: ClientSecret
-  path: github.com/lukasngl/client-secret-operator/api/v1alpha1
+  path: github.com/lukasngl/secret-manager/api/v1alpha1
   version: v1alpha1
