@@ -1,0 +1,32 @@
+{{ .Release.Name }} has been installed.
+
+To use the secret manager, create a Secret with the following annotations:
+
+  apiVersion: v1
+  kind: Secret
+  metadata:
+    name: my-app-credentials
+    annotations:
+      secret-manager.ngl.cx/managed: "true"
+      azure.secret-manager.ngl.cx/object-id: "<your-app-object-id>"
+      azure.secret-manager.ngl.cx/validity: "720h"  # optional, default 720h
+      azure.secret-manager.ngl.cx/client-secret-target: "CLIENT_SECRET"  # optional
+  type: Opaque
+
+The operator will:
+1. Create a new client secret in Azure AD
+2. Store it in the Secret's data field
+3. Automatically rotate before expiry
+4. Clean up old secrets when deleted
+
+{{- if .Values.azure.workloadIdentity.enabled }}
+
+Azure Workload Identity is enabled. Make sure:
+- The federated identity credential is configured in Azure AD
+- The managed identity has appropriate permissions (Application.ReadWrite.OwnedBy)
+{{- end }}
+
+{{- if .Values.azure.credentials.enabled }}
+
+Azure credentials are configured via environment variables.
+{{- end }}

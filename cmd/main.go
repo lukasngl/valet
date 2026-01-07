@@ -17,9 +17,6 @@ limitations under the License.
 package main
 
 import (
-	// Built-in adapters - blank imports trigger init() registration
-	_ "github.com/lukasngl/client-secret-operator/pkg/adapter/azure"
-
 	"github.com/lukasngl/client-secret-operator/pkg/operator"
 )
 

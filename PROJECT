@@ -2,7 +2,7 @@
 # This file is used to track the info used to scaffold your project
 # and allow the plugins properly work.
 # More info: https://book.kubebuilder.io/reference/project-config.html
-domain: my.domain
+domain: ngl.cx
 layout:
 - go.kubebuilder.io/v4
 plugins:
@@ -11,3 +11,13 @@ plugins:
 projectName: client-secret-operator
 repo: github.com/lukasngl/client-secret-operator
 version: "3"
+resources:
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: ngl.cx
+  group: secret-manager
+  kind: ClientSecret
+  path: github.com/lukasngl/client-secret-operator/api/v1alpha1
+  version: v1alpha1

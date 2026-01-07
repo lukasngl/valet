@@ -9,20 +9,21 @@ import (
 
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
-	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
-	// Import for auth plugins
+	// Import for auth plugins (also registers --kubeconfig flag)
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
+	secretmanagerv1alpha1 "github.com/lukasngl/client-secret-operator/api/v1alpha1"
+	"github.com/lukasngl/client-secret-operator/internal/adapter"
 	"github.com/lukasngl/client-secret-operator/internal/controller"
-	"github.com/lukasngl/client-secret-operator/pkg/adapter"
 )
 
 var (
@@ -32,6 +33,7 @@ var (
 
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
+	utilruntime.Must(secretmanagerv1alpha1.AddToScheme(scheme))
 }
 
 // Run starts the operator with the registered adapters.
@@ -43,9 +45,7 @@ func Run() {
 	var secureMetrics bool
 	var enableHTTP2 bool
 	var kubeContext string
-	var kubeconfig string
 
-	flag.StringVar(&kubeconfig, "kubeconfig", "", "Path to kubeconfig file (uses default loading rules if empty)")
 	flag.StringVar(&kubeContext, "context", "", "Kubernetes context to use (uses current context if empty)")
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
@@ -66,7 +66,10 @@ func Run() {
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
 	// Log registered adapters
-	registeredTypes := adapter.Types()
+	var registeredTypes []string
+	for typ := range adapter.Types() {
+		registeredTypes = append(registeredTypes, typ)
+	}
 	if len(registeredTypes) == 0 {
 		setupLog.Info("WARNING: no adapters registered")
 	} else {
@@ -88,8 +91,7 @@ func Run() {
 		TLSOpts: tlsOpts,
 	})
 
-	// Build kube config with optional kubeconfig/context override
-	cfg, err := getKubeConfig(kubeconfig, kubeContext)
+	cfg, err := getConfig(kubeContext)
 	if err != nil {
 		setupLog.Error(err, "unable to get kubeconfig")
 		os.Exit(1)
@@ -112,11 +114,11 @@ func Run() {
 		os.Exit(1)
 	}
 
-	if err = (&controller.SecretReconciler{
+	if err = (&controller.ClientSecretReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "Secret")
+		setupLog.Error(err, "unable to create controller", "controller", "ClientSecret")
 		os.Exit(1)
 	}
 
@@ -136,32 +138,15 @@ func Run() {
 	}
 }
 
-// getKubeConfig returns a Kubernetes client config.
-// If kubeconfig or context is specified, it uses those settings.
-// Otherwise, it tries in-cluster config first, then falls back to default kubeconfig.
-func getKubeConfig(kubeconfig, context string) (*rest.Config, error) {
-	// If either flag is set, use kubeconfig file
-	if kubeconfig != "" || context != "" {
-		loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
-		if kubeconfig != "" {
-			loadingRules.ExplicitPath = kubeconfig
-		}
-		configOverrides := &clientcmd.ConfigOverrides{}
-		if context != "" {
-			configOverrides.CurrentContext = context
-		}
-		return clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, configOverrides).ClientConfig()
+// getConfig builds a Kubernetes client config with optional context override.
+func getConfig(context string) (*rest.Config, error) {
+	if context == "" {
+		return ctrl.GetConfig()
 	}
 
-	// Try in-cluster config first
-	cfg, err := rest.InClusterConfig()
-	if err == nil {
-		return cfg, nil
-	}
-
-	// Fall back to default kubeconfig
+	// Use kubeconfig with context override
 	return clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
 		clientcmd.NewDefaultClientConfigLoadingRules(),
-		&clientcmd.ConfigOverrides{},
+		&clientcmd.ConfigOverrides{CurrentContext: context},
 	).ClientConfig()
 }

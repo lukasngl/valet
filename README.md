@@ -6,52 +6,53 @@ A Kubernetes operator that automatically provisions and rotates secrets from ext
 
 ## How it Works
 
-1. Create a Kubernetes Secret with management annotations
-2. The operator detects it and provisions credentials from the external provider
-3. Credentials are automatically rotated before expiry
-4. On Secret deletion, the operator cleans up external credentials
+1. Create a `ClientSecret` custom resource specifying the provider and configuration
+2. The operator provisions credentials from the external provider
+3. Credentials are written to a Kubernetes Secret (specified by `secretRef`)
+4. Credentials are automatically rotated before expiry
+5. On `ClientSecret` deletion, the operator cleans up external credentials
 
 ```yaml
-apiVersion: v1
-kind: Secret
+apiVersion: secret-manager.ngl.cx/v1alpha1
+kind: ClientSecret
 metadata:
-  name: my-app-credentials
-  annotations:
-    secret-manager.ngl.cx/managed: "true"
-    secret-manager.ngl.cx/type: "azure"
-    azure.secret-manager.ngl.cx/object-id: "00000000-0000-0000-0000-000000000000"
-    azure.secret-manager.ngl.cx/validity: "2160h"  # 90 days
-    azure.secret-manager.ngl.cx/client-id-target: "/data/AZURE_CLIENT_ID"
-    azure.secret-manager.ngl.cx/client-secret-target: "/data/AZURE_CLIENT_SECRET"
-type: Opaque
+  name: my-app
+spec:
+  provider: azure
+  config:
+    objectId: "00000000-0000-0000-0000-000000000000"
+    validity: "2160h"  # 90 days
+    template:
+      AZURE_CLIENT_ID: "{{ .ClientID }}"
+      AZURE_CLIENT_SECRET: "{{ .ClientSecret }}"
+      AZURE_TENANT_ID: "{{ .TenantID }}"
+  secretRef:
+    name: my-app-credentials
 ```
 
-## Security Considerations
+## Security Model
 
-> **Warning**: Review these security implications before deploying.
+Access control is managed via Kubernetes RBAC with three permission levels:
+
+| Permission | What it allows | Security implication |
+|------------|----------------|----------------------|
+| `clientsecret-editor-role` | Create/edit/delete `ClientSecret` resources | Can request credentials for any Azure AD app the operator has access to |
+| `clientsecret-viewer-role` | Read `ClientSecret` resources | Can see which apps are configured, but not the actual secrets |
+| Read `Secret` | Read the output Secret | Can access the provisioned credentials |
 
 ### Privilege Escalation Risk
 
-Any user who can create or edit Secrets with the managed annotation can potentially request credentials for **any** Azure AD application that the operator's service principal has access to.
+Anyone with `clientsecret-editor-role` can request credentials for **any** Azure AD application that the operator's service principal has access to.
 
-**Attack scenario:**
-1. Attacker creates a managed Secret with `object-id` of a high-privilege application
-2. Operator provisions credentials for that application
-3. Attacker reads the Secret and gains access to that application's permissions
-
-### Mitigations
+**Mitigations:**
 
 1. **Use `Application.ReadWrite.OwnedBy` permission** (recommended)
    - The operator can only manage applications it owns
-   - Admin must explicitly transfer app ownership to the operator's service principal
+   - Explicitly transfer app ownership to the operator's service principal
 
-2. **Namespace-to-ObjectID policy** (not yet implemented)
-   - Restrict which namespaces can request which object IDs
-   - Central policy controlled by cluster admins
-
-3. **Workload Identity / Managed Identity**
-   - Avoid storing Azure credentials in the cluster
-   - Use Azure's native identity federation
+2. **Limit operator's Azure permissions**
+   - Only grant the operator access to specific applications
+   - Use separate operators per trust boundary if needed
 
 ## Supported Adapters
 
@@ -59,24 +60,33 @@ Any user who can create or edit Secrets with the managed annotation can potentia
 |----------|--------|----------------|
 | Azure AD | Working | DefaultAzureCredential (CLI, Env, Managed Identity, Workload Identity) |
 
-## Plugin Architecture
+## Adding Providers
 
-Custom adapters can be created by implementing the `Adapter` interface and registering via `init()`:
+Custom providers can be added by implementing the `Provider` interface in `internal/adapter/` and registering via `init()`. Each provider defines its own config schema using struct tags:
 
 ```go
-package main
+// internal/adapter/myprovider.go
+package adapter
 
-import (
-    _ "github.com/lukasngl/client-secret-operator/pkg/adapter/azure"  // built-in
-    _ "github.com/mycompany/vault-adapter"                            // custom
-
-    "github.com/lukasngl/client-secret-operator/pkg/operator"
-)
-
-func main() {
-    operator.Run()
+type MyProviderConfig struct {
+    ProjectID string `json:"projectId" jsonschema:"required"`
+    // ...
 }
+
+var myProviderConfigSchema = MustSchema(&MyProviderConfig{})
+
+type MyProvider struct{}
+
+func init() {
+    register(&MyProvider{})
+}
+
+func (p *MyProvider) Type() string           { return "myprovider" }
+func (p *MyProvider) ConfigSchema() *Schema  { return myProviderConfigSchema }
+// ... implement Validate, Provision, DeleteKey
 ```
+
+Run `make generate manifests` to regenerate the CRD with the new provider's schema.
 
 ## Running Locally
 
@@ -91,25 +101,51 @@ go run ./cmd/main.go --context my-cluster
 go run ./cmd/main.go --kubeconfig ~/.kube/other-config
 ```
 
-## Status Annotations
+## Status
 
-The operator sets these annotations on managed Secrets:
+The operator tracks status in the `ClientSecret` resource:
 
-| Annotation | Description |
-|------------|-------------|
-| `secret-manager.ngl.cx/status` | `ready`, `error`, or `pending` |
-| `secret-manager.ngl.cx/provisioned-at` | Timestamp of last provisioning |
-| `secret-manager.ngl.cx/valid-until` | When the current credentials expire |
-| `secret-manager.ngl.cx/error` | Error message if status is `error` |
-| `secret-manager.ngl.cx/managed-keys` | JSON array of provisioned key IDs (for cleanup) |
+```yaml
+status:
+  phase: Ready              # Ready, Pending, or Failed
+  currentKeyId: "abc-123"
+  activeKeys:
+    - keyId: "abc-123"
+      createdAt: "2025-01-06T12:00:00Z"
+      expiresAt: "2025-04-06T12:00:00Z"
+  failureCount: 0
+  conditions:
+    - type: Ready
+      status: "True"
+      reason: Provisioned
+      message: "Credentials provisioned successfully"
+```
 
-## TODO
+View status with:
+```bash
+kubectl get clientsecrets   # or: kubectl get cs
+kubectl describe cs my-app
+```
 
-- [ ] Namespace-to-ObjectID policy for access control
-- [ ] Helm chart / Kustomize deployment manifests
-- [ ] Metrics and observability
-- [ ] Additional adapters (AWS, GCP, Vault)
-- [ ] Admission webhook for validation
+## Installation
+
+```bash
+# Install CRD and operator via Helm
+helm install secret-manager ./charts/secret-manager \
+  --namespace secret-manager-system \
+  --create-namespace \
+  --set azure.workloadIdentity.enabled=true \
+  --set azure.workloadIdentity.clientId="<your-client-id>"
+```
+
+## Roadmap
+
+- [ ] Unit and integration tests
+- [ ] Prometheus metrics (provisioning latency, failure counts, key age)
+- [ ] Kubernetes Events for provisioning/rotation/errors
+- [ ] Additional providers (AWS Secrets Manager, GCP Secret Manager, HashiCorp Vault)
+- [ ] Namespace-scoped ObjectID allowlists for fine-grained access control
+- [ ] CI/CD pipeline with automated releases
 
 ## License
 

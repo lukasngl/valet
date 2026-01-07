@@ -94,8 +94,12 @@ help: ## Display this help.
 
 ##@ Development
 
+.PHONY: generate-schema
+generate-schema: ## Generate kustomize patch for provider config schemas.
+	go run ./cmd/gen-kustomize -out config/crd/patches/config-schema.yaml
+
 .PHONY: manifests
-manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
+manifests: controller-gen generate-schema ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
 	$(CONTROLLER_GEN) rbac:roleName=manager-role crd webhook paths="./..." output:crd:artifacts:config=config/crd/bases
 
 .PHONY: generate
