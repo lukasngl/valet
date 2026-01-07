@@ -1,114 +1,116 @@
-# client-secret-operator
-// TODO(user): Add simple overview of use/purpose
+# Secret Manager Operator
 
-## Description
-// TODO(user): An in-depth paragraph about your project and overview of use
+> **Work in Progress** - This operator is under active development and not yet production-ready.
 
-## Getting Started
+A Kubernetes operator that automatically provisions and rotates secrets from external providers. Currently supports Azure AD client secrets with a plugin architecture for additional providers.
 
-### Prerequisites
-- go version v1.21.0+
-- docker version 17.03+.
-- kubectl version v1.11.3+.
-- Access to a Kubernetes v1.11.3+ cluster.
+## How it Works
 
-### To Deploy on the cluster
-**Build and push your image to the location specified by `IMG`:**
+1. Create a Kubernetes Secret with management annotations
+2. The operator detects it and provisions credentials from the external provider
+3. Credentials are automatically rotated before expiry
+4. On Secret deletion, the operator cleans up external credentials
 
-```sh
-make docker-build docker-push IMG=<some-registry>/client-secret-operator:tag
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: my-app-credentials
+  annotations:
+    secret-manager.ngl.cx/managed: "true"
+    secret-manager.ngl.cx/type: "azure"
+    azure.secret-manager.ngl.cx/object-id: "00000000-0000-0000-0000-000000000000"
+    azure.secret-manager.ngl.cx/validity: "2160h"  # 90 days
+    azure.secret-manager.ngl.cx/client-id-target: "/data/AZURE_CLIENT_ID"
+    azure.secret-manager.ngl.cx/client-secret-target: "/data/AZURE_CLIENT_SECRET"
+type: Opaque
 ```
 
-**NOTE:** This image ought to be published in the personal registry you specified.
-And it is required to have access to pull the image from the working environment.
-Make sure you have the proper permission to the registry if the above commands don’t work.
+## Security Considerations
 
-**Install the CRDs into the cluster:**
+> **Warning**: Review these security implications before deploying.
 
-```sh
-make install
+### Privilege Escalation Risk
+
+Any user who can create or edit Secrets with the managed annotation can potentially request credentials for **any** Azure AD application that the operator's service principal has access to.
+
+**Attack scenario:**
+1. Attacker creates a managed Secret with `object-id` of a high-privilege application
+2. Operator provisions credentials for that application
+3. Attacker reads the Secret and gains access to that application's permissions
+
+### Mitigations
+
+1. **Use `Application.ReadWrite.OwnedBy` permission** (recommended)
+   - The operator can only manage applications it owns
+   - Admin must explicitly transfer app ownership to the operator's service principal
+
+2. **Namespace-to-ObjectID policy** (not yet implemented)
+   - Restrict which namespaces can request which object IDs
+   - Central policy controlled by cluster admins
+
+3. **Workload Identity / Managed Identity**
+   - Avoid storing Azure credentials in the cluster
+   - Use Azure's native identity federation
+
+## Supported Adapters
+
+| Provider | Status | Authentication |
+|----------|--------|----------------|
+| Azure AD | Working | DefaultAzureCredential (CLI, Env, Managed Identity, Workload Identity) |
+
+## Plugin Architecture
+
+Custom adapters can be created by implementing the `Adapter` interface and registering via `init()`:
+
+```go
+package main
+
+import (
+    _ "github.com/lukasngl/client-secret-operator/pkg/adapter/azure"  // built-in
+    _ "github.com/mycompany/vault-adapter"                            // custom
+
+    "github.com/lukasngl/client-secret-operator/pkg/operator"
+)
+
+func main() {
+    operator.Run()
+}
 ```
 
-**Deploy the Manager to the cluster with the image specified by `IMG`:**
+## Running Locally
 
-```sh
-make deploy IMG=<some-registry>/client-secret-operator:tag
+```bash
+# Using current kubeconfig context
+go run ./cmd/main.go
+
+# With specific context
+go run ./cmd/main.go --context my-cluster
+
+# With specific kubeconfig
+go run ./cmd/main.go --kubeconfig ~/.kube/other-config
 ```
 
-> **NOTE**: If you encounter RBAC errors, you may need to grant yourself cluster-admin
-privileges or be logged in as admin.
+## Status Annotations
 
-**Create instances of your solution**
-You can apply the samples (examples) from the config/sample:
+The operator sets these annotations on managed Secrets:
 
-```sh
-kubectl apply -k config/samples/
-```
+| Annotation | Description |
+|------------|-------------|
+| `secret-manager.ngl.cx/status` | `ready`, `error`, or `pending` |
+| `secret-manager.ngl.cx/provisioned-at` | Timestamp of last provisioning |
+| `secret-manager.ngl.cx/valid-until` | When the current credentials expire |
+| `secret-manager.ngl.cx/error` | Error message if status is `error` |
+| `secret-manager.ngl.cx/managed-keys` | JSON array of provisioned key IDs (for cleanup) |
 
->**NOTE**: Ensure that the samples has default values to test it out.
+## TODO
 
-### To Uninstall
-**Delete the instances (CRs) from the cluster:**
-
-```sh
-kubectl delete -k config/samples/
-```
-
-**Delete the APIs(CRDs) from the cluster:**
-
-```sh
-make uninstall
-```
-
-**UnDeploy the controller from the cluster:**
-
-```sh
-make undeploy
-```
-
-## Project Distribution
-
-Following are the steps to build the installer and distribute this project to users.
-
-1. Build the installer for the image built and published in the registry:
-
-```sh
-make build-installer IMG=<some-registry>/client-secret-operator:tag
-```
-
-NOTE: The makefile target mentioned above generates an 'install.yaml'
-file in the dist directory. This file contains all the resources built
-with Kustomize, which are necessary to install this project without
-its dependencies.
-
-2. Using the installer
-
-Users can just run kubectl apply -f <URL for YAML BUNDLE> to install the project, i.e.:
-
-```sh
-kubectl apply -f https://raw.githubusercontent.com/<org>/client-secret-operator/<tag or branch>/dist/install.yaml
-```
-
-## Contributing
-// TODO(user): Add detailed information on how you would like others to contribute to this project
-
-**NOTE:** Run `make help` for more information on all potential `make` targets
-
-More information can be found via the [Kubebuilder Documentation](https://book.kubebuilder.io/introduction.html)
+- [ ] Namespace-to-ObjectID policy for access control
+- [ ] Helm chart / Kustomize deployment manifests
+- [ ] Metrics and observability
+- [ ] Additional adapters (AWS, GCP, Vault)
+- [ ] Admission webhook for validation
 
 ## License
 
-Copyright 2025.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-
+Copyright 2025. Licensed under the Apache License, Version 2.0.
