@@ -10,54 +10,21 @@ permissions:
   contents: read
 
 jobs:
-  test:
+  check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-          cache: true
+      - uses: DeterminateSystems/nix-installer-action@main
 
-      - name: Verify dependencies
-        run: go mod verify
+      - uses: DeterminateSystems/magic-nix-cache-action@main
 
-      - name: Build
-        run: go build -v ./...
-
-      - name: Test
-        run: go test -v -race ./...
-
-  lint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-          cache: true
-
-      - name: golangci-lint
-        uses: golangci/golangci-lint-action@v6
-        with:
-          version: latest
-
-  helm-lint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Helm
-        uses: azure/setup-helm@v4
-
-      - name: Lint Helm chart
-        run: helm lint charts/secret-manager
+      - name: Run all checks
+        run: nix flake check -L
 
   docker:
     runs-on: ubuntu-latest
-    needs: [test, lint]
+    needs: [check]
     steps:
       - uses: actions/checkout@v4
 

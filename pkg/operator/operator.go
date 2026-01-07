@@ -66,7 +66,7 @@ func Run() {
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
 	// Log registered adapters
-	var registeredTypes []string
+	registeredTypes := make([]string, 0, 8)
 	for typ := range adapter.Types() {
 		registeredTypes = append(registeredTypes, typ)
 	}

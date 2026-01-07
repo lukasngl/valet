@@ -97,11 +97,7 @@ func (r *ClientSecretReconciler) Reconcile(
 	}
 
 	// Cleanup expired keys
-	keysChanged, err := r.cleanupExpiredKeys(ctx, &cs, prov)
-	if err != nil {
-		log.Error(err, "failed to cleanup expired keys")
-	}
-	if keysChanged {
+	if r.cleanupExpiredKeys(ctx, &cs, prov) {
 		if err := r.Status().Update(ctx, &cs); err != nil {
 			log.Error(err, "failed to update status after key cleanup")
 		}
@@ -275,7 +271,7 @@ func (r *ClientSecretReconciler) cleanupExpiredKeys(
 	ctx context.Context,
 	cs *secretmanagerv1alpha1.ClientSecret,
 	prov adapter.Provider,
-) (bool, error) {
+) bool {
 	log := log.FromContext(ctx)
 
 	now := time.Now()
@@ -298,7 +294,7 @@ func (r *ClientSecretReconciler) cleanupExpiredKeys(
 	}
 
 	cs.Status.ActiveKeys = activeKeys
-	return removed > 0, nil
+	return removed > 0
 }
 
 // needsRenewal checks if the credentials need to be provisioned or renewed

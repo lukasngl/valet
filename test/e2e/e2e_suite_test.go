@@ -20,13 +20,13 @@ import (
 	"fmt"
 	"testing"
 
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
+	. "github.com/onsi/ginkgo/v2" //nolint:revive,staticcheck
+	. "github.com/onsi/gomega"    //nolint:revive,staticcheck
 )
 
 // Run e2e tests using the Ginkgo runner.
 func TestE2E(t *testing.T) {
 	RegisterFailHandler(Fail)
-	fmt.Fprintf(GinkgoWriter, "Starting secret-manager suite\n")
+	fmt.Fprintf(GinkgoWriter, "Starting secret-manager suite\n") //nolint:errcheck
 	RunSpecs(t, "e2e suite")
 }
