@@ -99,8 +99,9 @@ generate-schema: ## Generate kustomize patch for provider config schemas.
 	go run ./cmd/gen-kustomize -out config/crd/patches/config-schema.yaml
 
 .PHONY: manifests
-manifests: controller-gen generate-schema ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
+manifests: controller-gen kustomize generate-schema ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
 	$(CONTROLLER_GEN) rbac:roleName=manager-role crd webhook paths="./..." output:crd:artifacts:config=config/crd/bases
+	$(KUSTOMIZE) build config/crd > charts/secret-manager/crds/clientsecrets.yaml
 
 .PHONY: generate
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.

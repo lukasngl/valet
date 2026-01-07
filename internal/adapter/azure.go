@@ -41,8 +41,9 @@ type AzureConfig struct {
 	Validity string `json:"validity,omitempty" jsonschema:"default=2160h,description=Secret validity duration"`
 
 	// Template maps output keys to secret data keys using Go templates.
-	// Available template variables: clientId, clientSecret, tenantId
-	Template map[string]string `json:"template" jsonschema:"required,description=Template mapping for secret data. Available variables: clientId clientSecret tenantId"`
+	// Available variables: ClientID, ClientSecret
+	// Static values like TenantID can be hardcoded directly in the template.
+	Template map[string]string `json:"template" jsonschema:"required,description=Template mapping for secret data. Available variables: ClientID ClientSecret"`
 }
 
 // azureConfigSchema holds the generated and compiled JSON Schema for AzureConfig.
@@ -180,14 +181,10 @@ func (a *Azure) Provision(ctx context.Context, rawConfig json.RawMessage) (*Resu
 		clientID = *app.GetAppId()
 	}
 
-	// Note: Tenant ID cannot be retrieved from DefaultAzureCredential
-	tenantID := ""
-
 	// Render templates
 	templateData := map[string]string{
 		"ClientID":     clientID,
 		"ClientSecret": *secretText,
-		"TenantID":     tenantID,
 	}
 
 	data := make(map[string]string)

@@ -25,7 +25,7 @@ spec:
     template:
       AZURE_CLIENT_ID: "{{ .ClientID }}"
       AZURE_CLIENT_SECRET: "{{ .ClientSecret }}"
-      AZURE_TENANT_ID: "{{ .TenantID }}"
+      AZURE_TENANT_ID: "your-tenant-id"  # hardcode static values
   secretRef:
     name: my-app-credentials
 ```
