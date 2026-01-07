@@ -19,6 +19,18 @@
         };
         self' = builtins.mapAttrs (name: value: value.${system} or value) self;
         treefmt = treefmt-nix.lib.evalModule pkgs ./treefmt.nix;
+        withPackageEnv =
+          {
+            name,
+            buildPhase,
+            extraBuildInputs ? [ ],
+          }:
+          self'.packages.secret-manager.overrideAttrs (old: {
+            inherit name buildPhase;
+            nativeBuildInputs = old.nativeBuildInputs ++ extraBuildInputs;
+            doCheck = false;
+            installPhase = "touch $out";
+          });
       in
       {
         packages = rec {
@@ -59,9 +71,9 @@
           formatting = treefmt.config.build.check self;
 
           # run with `nix build .#checks.generated`
-          generated = self'.packages.secret-manager.overrideAttrs (old: {
+          generated = withPackageEnv {
             name = "check-generated";
-            nativeBuildInputs = old.nativeBuildInputs ++ self'.devShells.default.buildInputs ++ [ pkgs.git ];
+            extraBuildInputs = self'.devShells.default.buildInputs ++ [ pkgs.git ];
             buildPhase = ''
               export HOME=$(mktemp -d)
 
@@ -77,23 +89,27 @@
                 exit 1
               fi
             '';
-            installPhase = ''
-              touch $out
-            '';
-          });
+          };
 
           # run with `nix build .#checks.golangci-lint`
-          golangci-lint = self'.packages.secret-manager.overrideAttrs (old: {
+          golangci-lint = withPackageEnv {
             name = "golangci-lint-check";
-            nativeBuildInputs = old.nativeBuildInputs ++ [ pkgs.golangci-lint ];
+            extraBuildInputs = [ pkgs.golangci-lint ];
             buildPhase = ''
               export HOME=$(mktemp -d)
               golangci-lint run --timeout 5m ./...
             '';
-            installPhase = ''
-              touch $out
+          };
+
+          # run with `nix build .#checks.test`
+          test = withPackageEnv {
+            name = "go-test";
+            extraBuildInputs = [ pkgs.gotestsum ];
+            buildPhase = ''
+              export HOME=$(mktemp -d)
+              gotestsum --format short-verbose -- -short ./...
             '';
-          });
+          };
 
           # run with `nix build .#checks.helm-lint`
           helm-lint = pkgs.runCommand "helm-lint" { nativeBuildInputs = [ pkgs.kubernetes-helm ]; } ''
@@ -101,8 +117,6 @@
             touch $out
           '';
 
-          # Tests run via buildGoModule's doCheck (default true)
-          # The package build itself runs `go test`
         };
       }
     );

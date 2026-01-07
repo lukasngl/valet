@@ -26,6 +26,10 @@ import (
 
 // Run e2e tests using the Ginkgo runner.
 func TestE2E(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping e2e tests in short mode")
+	}
+
 	RegisterFailHandler(Fail)
 	fmt.Fprintf(GinkgoWriter, "Starting secret-manager suite\n") //nolint:errcheck
 	RunSpecs(t, "e2e suite")
