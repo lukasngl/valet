@@ -29,9 +29,13 @@ fmt:
 vet:
     go vet ./...
 
-# Run tests
+# Run unit tests
 test:
     go test ./... -coverprofile cover.out
+
+# Run e2e tests
+e2e:
+    go test ./test/e2e/... -v -timeout 10m
 
 # Run golangci-lint
 lint:

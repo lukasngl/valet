@@ -3,6 +3,10 @@
     nixpkgs.url = "github:nixos/nixpkgs/nixpkgs-unstable";
     flake-utils.url = "github:numtide/flake-utils";
     treefmt-nix.url = "github:numtide/treefmt-nix";
+    godogen = {
+      url = "github:lukasngl/godogen";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
   outputs =
     {
@@ -10,6 +14,7 @@
       nixpkgs,
       flake-utils,
       treefmt-nix,
+      godogen,
     }:
     flake-utils.lib.eachDefaultSystem (
       system:
@@ -51,13 +56,15 @@
         devShells.default = pkgs.mkShell {
           hardeningDisable = [ "fortify" ];
           name = "secret-manager";
-          buildInputs = with pkgs; [
+          buildInputs = (with pkgs; [
             go
             just
             operator-sdk
             golangci-lint
             kubernetes-controller-tools
             kustomize
+          ]) ++ [
+            godogen.packages.${system}.default
           ];
         };
 
