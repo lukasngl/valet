@@ -13,6 +13,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/google/uuid"
+	"github.com/lukasngl/secret-manager/internal/adapter"
 	msgraphsdk "github.com/microsoftgraph/msgraph-sdk-go"
 	graphapplications "github.com/microsoftgraph/msgraph-sdk-go/applications"
 	graphmodels "github.com/microsoftgraph/msgraph-sdk-go/models"
@@ -20,19 +21,19 @@ import (
 )
 
 func init() {
-	register(&Azure{})
+	adapter.DefaultRegistry().Register(&Provider{})
 }
 
 const (
-	// AzureType is the identifier for the Azure provider.
-	AzureType = "azure"
+	// Type is the identifier for the Azure provider.
+	Type = "azure"
 
-	// AzureDefaultValidity is the default secret validity duration.
-	AzureDefaultValidity = 90 * 24 * time.Hour // 90 days
+	// DefaultValidity is the default secret validity duration.
+	DefaultValidity = 90 * 24 * time.Hour // 90 days
 )
 
-// AzureConfig defines the configuration for the Azure AD provider.
-type AzureConfig struct {
+// Config defines the configuration for the Azure AD provider.
+type Config struct {
 	// ObjectID is the Azure AD application Object ID (required).
 	ObjectID string `json:"objectId" jsonschema:"required,description=Azure AD application Object ID"`
 
@@ -47,17 +48,17 @@ type AzureConfig struct {
 }
 
 // azureConfigSchema holds the generated and compiled JSON Schema for AzureConfig.
-var azureConfigSchema = MustSchema(&AzureConfig{})
+var azureConfigSchema = adapter.MustSchema(&Config{})
 
-// Azure provisions Azure AD client secrets using Microsoft Graph API.
-type Azure struct {
+// Provider provisions Azure AD client secrets using Microsoft Graph API.
+type Provider struct {
 	client   *msgraphsdk.GraphServiceClient
 	initOnce sync.Once
 	initErr  error
 }
 
 // initClient initializes the Azure client on first use.
-func (a *Azure) initClient() error {
+func (a *Provider) initClient() error {
 	a.initOnce.Do(func() {
 		cred, err := azidentity.NewDefaultAzureCredential(nil)
 		if err != nil {
@@ -80,23 +81,23 @@ func (a *Azure) initClient() error {
 }
 
 // Type returns the provider identifier.
-func (a *Azure) Type() string {
-	return AzureType
+func (a *Provider) Type() string {
+	return Type
 }
 
 // ConfigSchema returns the JSON Schema for Azure provider config.
-func (a *Azure) ConfigSchema() *Schema {
+func (a *Provider) ConfigSchema() *adapter.Schema {
 	return azureConfigSchema
 }
 
 // Validate validates the Azure provider config.
-func (a *Azure) Validate(rawConfig json.RawMessage) error {
+func (a *Provider) Validate(rawConfig json.RawMessage) error {
 	// JSON Schema validation
 	if err := a.ConfigSchema().Validate(rawConfig); err != nil {
 		return fmt.Errorf("config validation failed: %w", err)
 	}
 
-	var config AzureConfig
+	var config Config
 	if err := json.Unmarshal(rawConfig, &config); err != nil {
 		return fmt.Errorf("invalid config: %w", err)
 	}
@@ -119,17 +120,20 @@ func (a *Azure) Validate(rawConfig json.RawMessage) error {
 }
 
 // Provision creates a new client secret for an Azure AD application.
-func (a *Azure) Provision(ctx context.Context, rawConfig json.RawMessage) (*Result, error) {
+func (a *Provider) Provision(
+	ctx context.Context,
+	rawConfig json.RawMessage,
+) (*adapter.Result, error) {
 	if err := a.initClient(); err != nil {
 		return nil, err
 	}
 
-	var config AzureConfig
+	var config Config
 	if err := json.Unmarshal(rawConfig, &config); err != nil {
 		return nil, fmt.Errorf("invalid config: %w", err)
 	}
 
-	validity := AzureDefaultValidity
+	validity := DefaultValidity
 	if config.Validity != "" {
 		parsed, err := time.ParseDuration(config.Validity)
 		if err != nil {
@@ -141,11 +145,10 @@ func (a *Azure) Provision(ctx context.Context, rawConfig json.RawMessage) (*Resu
 	// Create the password credential
 	now := time.Now()
 	endDateTime := now.Add(validity)
+	displayName := fmt.Sprintf("secret-manager-%s", now.Format("2006-01-02"))
 
 	passwordCredential := graphmodels.NewPasswordCredential()
-	passwordCredential.SetDisplayName(
-		ptr(fmt.Sprintf("secret-manager-%s", now.Format("2006-01-02"))),
-	)
+	passwordCredential.SetDisplayName(&displayName)
 	passwordCredential.SetEndDateTime(&endDateTime)
 
 	requestBody := graphapplications.NewItemAddPasswordPostRequestBody()
@@ -196,7 +199,7 @@ func (a *Azure) Provision(ctx context.Context, rawConfig json.RawMessage) (*Resu
 		data[key] = string(rendered)
 	}
 
-	return &Result{
+	return &adapter.Result{
 		StringData:    data,
 		ProvisionedAt: now,
 		ValidUntil:    endDateTime,
@@ -205,7 +208,7 @@ func (a *Azure) Provision(ctx context.Context, rawConfig json.RawMessage) (*Resu
 }
 
 // DeleteKey removes a password credential from an Azure AD application.
-func (a *Azure) DeleteKey(ctx context.Context, rawConfig json.RawMessage, keyID string) error {
+func (a *Provider) DeleteKey(ctx context.Context, rawConfig json.RawMessage, keyID string) error {
 	if keyID == "" {
 		return nil // Nothing to delete
 	}
@@ -214,7 +217,7 @@ func (a *Azure) DeleteKey(ctx context.Context, rawConfig json.RawMessage, keyID 
 		return err
 	}
 
-	var config AzureConfig
+	var config Config
 	if err := json.Unmarshal(rawConfig, &config); err != nil {
 		return fmt.Errorf("invalid config: %w", err)
 	}

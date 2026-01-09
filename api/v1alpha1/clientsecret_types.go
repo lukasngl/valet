@@ -5,6 +5,35 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+func init() {
+	SchemeBuilder.Register(&ClientSecret{}, &ClientSecretList{})
+}
+
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
+// +kubebuilder:resource:shortName=cs
+// +kubebuilder:printcolumn:name="Provider",type="string",JSONPath=`.spec.provider`
+// +kubebuilder:printcolumn:name="Phase",type="string",JSONPath=`.status.phase`
+// +kubebuilder:printcolumn:name="Age",type="date",JSONPath=`.metadata.creationTimestamp`
+
+// ClientSecret is the Schema for the clientsecrets API
+type ClientSecret struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	Spec   ClientSecretSpec   `json:"spec,omitempty"`
+	Status ClientSecretStatus `json:"status,omitempty"`
+}
+
+// +kubebuilder:object:root=true
+
+// ClientSecretList contains a list of ClientSecret
+type ClientSecretList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []ClientSecret `json:"items"`
+}
+
 // ClientSecretSpec defines the desired state of ClientSecret
 type ClientSecretSpec struct {
 	// Provider specifies which provider to use (e.g., "azure", "aws")
@@ -51,8 +80,8 @@ type ClientSecretStatus struct {
 	// +kubebuilder:validation:Enum=Pending;Ready;Failed
 	Phase string `json:"phase,omitempty"`
 
-	// CurrentKeyId is the identifier of the active credential
-	CurrentKeyId string `json:"currentKeyId,omitempty"`
+	// CurrentKeyID is the identifier of the active credential
+	CurrentKeyID string `json:"currentKeyId,omitempty"`
 
 	// ActiveKeys lists all non-expired credentials
 	// +optional
@@ -72,33 +101,4 @@ type ClientSecretStatus struct {
 	// Conditions represent the latest available observations
 	// +optional
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
-}
-
-// +kubebuilder:object:root=true
-// +kubebuilder:subresource:status
-// +kubebuilder:resource:shortName=cs
-// +kubebuilder:printcolumn:name="Provider",type="string",JSONPath=`.spec.provider`
-// +kubebuilder:printcolumn:name="Phase",type="string",JSONPath=`.status.phase`
-// +kubebuilder:printcolumn:name="Age",type="date",JSONPath=`.metadata.creationTimestamp`
-
-// ClientSecret is the Schema for the clientsecrets API
-type ClientSecret struct {
-	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
-
-	Spec   ClientSecretSpec   `json:"spec,omitempty"`
-	Status ClientSecretStatus `json:"status,omitempty"`
-}
-
-// +kubebuilder:object:root=true
-
-// ClientSecretList contains a list of ClientSecret
-type ClientSecretList struct {
-	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []ClientSecret `json:"items"`
-}
-
-func init() {
-	SchemeBuilder.Register(&ClientSecret{}, &ClientSecretList{})
 }

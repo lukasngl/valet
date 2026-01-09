@@ -1,5 +1,0 @@
-resources:
-- bases/secret-manager.ngl.cx_clientsecrets.yaml
-
-patches:
-- path: patches/config-schema.yaml

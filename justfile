@@ -7,17 +7,19 @@ help:
     @just --list
 
 # Run all code generation
-gen: generate manifests
+gen: generate-manifests generate-helm-chart
 
-# Generate DeepCopy implementations
-generate:
+# Generate Go code and base manifests
+generate-manifests:
     controller-gen object:headerFile="hack/boilerplate.go.txt" paths="./..."
+    controller-gen crd paths="./..." output:crd:artifacts:config=config/crd
+    controller-gen rbac:roleName=secret-manager paths="./..." output:rbac:artifacts:config=config/rbac
 
-# Generate CRD manifests and Helm chart
-manifests:
-    go run ./cmd/gen-kustomize -out config/crd/patches/config-schema.yaml
-    controller-gen rbac:roleName=manager-role crd webhook paths="./..." output:crd:artifacts:config=config/crd/bases
-    kustomize build config/crd > charts/secret-manager/crds/clientsecrets.yaml
+# Generate helm chart from manifests
+generate-helm-chart:
+    go run ./cmd/gen-crd > charts/secret-manager/crds/clientsecrets.yaml
+    @printf '%s\n' 'apiVersion: rbac.authorization.k8s.io/v1' 'kind: ClusterRole' 'metadata:' '  name: {{{{ include "secret-manager.fullname" . }}' '  labels:' '    {{{{- include "secret-manager.labels" . | nindent 4 }}' > charts/secret-manager/templates/clusterrole.yaml
+    @sed -n '/^rules:/,$p' config/rbac/role.yaml >> charts/secret-manager/templates/clusterrole.yaml
 
 # Run go fmt
 fmt:
@@ -52,7 +54,7 @@ docker-build:
     docker build -t {{ img }} .
 
 # Install CRDs into cluster
-install: manifests
+install: gen
     kubectl apply -f charts/secret-manager/crds/
 
 # Uninstall CRDs from cluster

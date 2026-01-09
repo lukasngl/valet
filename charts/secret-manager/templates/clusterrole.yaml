@@ -5,9 +5,47 @@ metadata:
   labels:
     {{- include "secret-manager.labels" . | nindent 4 }}
 rules:
-  - apiGroups: [""]
-    resources: ["secrets"]
-    verbs: ["get", "list", "watch", "update", "patch"]
-  - apiGroups: [""]
-    resources: ["events"]
-    verbs: ["create", "patch"]
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - secret-manager.ngl.cx
+  resources:
+  - clientsecrets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - secret-manager.ngl.cx
+  resources:
+  - clientsecrets/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - secret-manager.ngl.cx
+  resources:
+  - clientsecrets/status
+  verbs:
+  - get
+  - patch
+  - update

@@ -4,13 +4,34 @@ package adapter
 import (
 	"context"
 	"encoding/json"
-	"iter"
-	"maps"
 	"time"
 
 	jschema "github.com/invopop/jsonschema"
 	"github.com/santhosh-tekuri/jsonschema/v6"
 )
+
+// Provider provisions secrets from an external provider.
+type Provider interface {
+	// Type returns the provider identifier (e.g., "azure", "aws").
+	Type() string
+
+	// ConfigSchema returns the JSON Schema for this provider's config.
+	ConfigSchema() *Schema
+
+	// Validate validates the provider config.
+	// This includes JSON schema validation and extended validation (e.g., template parsing).
+	Validate(config json.RawMessage) error
+
+	// Provision creates or renews credentials.
+	// The provider unmarshals config into its typed struct.
+	// Returns Result with rendered secret data (template applied).
+	Provision(ctx context.Context, config json.RawMessage) (*Result, error)
+
+	// DeleteKey removes a credential by its KeyID.
+	// Called by the controller to clean up expired credentials.
+	// Providers that don't need cleanup can return nil.
+	DeleteKey(ctx context.Context, config json.RawMessage, keyID string) error
+}
 
 // Result contains the secret data and metadata returned by a provider.
 type Result struct {
@@ -79,54 +100,6 @@ func MustSchema(v any) *Schema {
 	}
 
 	return &Schema{raw: raw, compiled: compiled}
-}
-
-// Provider provisions secrets from an external provider.
-type Provider interface {
-	// Type returns the provider identifier (e.g., "azure", "aws").
-	Type() string
-
-	// ConfigSchema returns the JSON Schema for this provider's config.
-	ConfigSchema() *Schema
-
-	// Validate validates the provider config.
-	// This includes JSON schema validation and extended validation (e.g., template parsing).
-	Validate(config json.RawMessage) error
-
-	// Provision creates or renews credentials.
-	// The provider unmarshals config into its typed struct.
-	// Returns Result with rendered secret data (template applied).
-	Provision(ctx context.Context, config json.RawMessage) (*Result, error)
-
-	// DeleteKey removes a credential by its KeyID.
-	// Called by the controller to clean up expired credentials.
-	// Providers that don't need cleanup can return nil.
-	DeleteKey(ctx context.Context, config json.RawMessage, keyID string) error
-}
-
-// Global registry
-var providers = make(map[string]Provider)
-
-// register adds a provider to the global registry.
-// This is called from a provider's init() function.
-func register(p Provider) {
-	providers[p.Type()] = p
-}
-
-// Get returns a provider by type from the global registry.
-func Get(providerType string) Provider {
-	return providers[providerType]
-}
-
-// All returns an iterator over all registered providers.
-// The returned iterator cannot be used to modify the registry.
-func All() iter.Seq2[string, Provider] {
-	return maps.All(providers)
-}
-
-// Types returns all registered provider types.
-func Types() iter.Seq[string] {
-	return maps.Keys(providers)
 }
 
 func ptr[T any](v T) *T {

@@ -49,10 +49,19 @@ const (
 	PhaseFailed  = "Failed"
 )
 
+// SetupWithManager sets up the controller with the Manager.
+func (r *ClientSecretReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	return ctrl.NewControllerManagedBy(mgr).
+		For(&secretmanagerv1alpha1.ClientSecret{}).
+		Owns(&corev1.Secret{}).
+		Complete(r)
+}
+
 // ClientSecretReconciler reconciles a ClientSecret object
 type ClientSecretReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	Scheme   *runtime.Scheme
+	Registry adapter.Registry
 }
 
 // +kubebuilder:rbac:groups=secret-manager.ngl.cx,resources=clientsecrets,verbs=get;list;watch;create;update;patch;delete
@@ -77,7 +86,7 @@ func (r *ClientSecretReconciler) Reconcile(
 	log.Info("reconciling ClientSecret", "name", cs.Name, "provider", cs.Spec.Provider)
 
 	// Get provider
-	prov := adapter.Get(cs.Spec.Provider)
+	prov := r.Registry.Get(cs.Spec.Provider)
 	if prov == nil {
 		return r.setFailedCondition(ctx, &cs, fmt.Errorf("unknown provider %q", cs.Spec.Provider))
 	}
@@ -168,7 +177,7 @@ func (r *ClientSecretReconciler) setReadyCondition(
 
 	cs.Status.Phase = PhaseReady
 	cs.Status.ObservedGeneration = cs.Generation
-	cs.Status.CurrentKeyId = result.KeyID
+	cs.Status.CurrentKeyID = result.KeyID
 	cs.Status.FailureCount = 0
 	cs.Status.LastFailure = nil
 	cs.Status.LastFailureMessage = ""
@@ -377,12 +386,4 @@ func (r *ClientSecretReconciler) scheduleNextRenewal(
 	requeueAfter := max(time.Until(newestKey.ExpiresAt.Time)-threshold, time.Minute)
 
 	return ctrl.Result{RequeueAfter: requeueAfter}
-}
-
-// SetupWithManager sets up the controller with the Manager.
-func (r *ClientSecretReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
-		For(&secretmanagerv1alpha1.ClientSecret{}).
-		Owns(&corev1.Secret{}).
-		Complete(r)
 }
