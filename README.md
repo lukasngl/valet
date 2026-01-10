@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/lukasngl/secret-manager/actions/workflows/ci.yaml/badge.svg)](https://github.com/lukasngl/secret-manager/actions/workflows/ci.yaml)
 [![codecov](https://codecov.io/github/lukasngl/secret-manager/graph/badge.svg?token=KFUG301E2O)](https://codecov.io/github/lukasngl/secret-manager)
-[![built with nix](https://builtwithnix.org/badge.svg)](https://builtwithnix.org)
+[![built with nix](https://img.shields.io/static/v1?logo=nixos&logoColor=white&label=&message=Built%20with%20Nix&color=41439a)](https://builtwithnix.org)
 
 > **Work in Progress** - This operator is under active development and not yet production-ready.
 

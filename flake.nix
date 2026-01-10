@@ -106,7 +106,7 @@
             extraBuildInputs = [ pkgs.golangci-lint ];
             buildPhase = ''
               export HOME=$(mktemp -d)
-              golangci-lint run --timeout 5m ./...
+              golangci-lint run --timeout 10m ./...
             '';
           };
 

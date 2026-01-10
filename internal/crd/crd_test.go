@@ -3,11 +3,28 @@ package crd
 import (
 	"context"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/gkampitakis/go-snaps/snaps"
 	"github.com/lukasngl/secret-manager/internal/adapter"
 )
+
+// findModuleRoot walks up from the current directory to find go.mod.
+func findModuleRoot() string {
+	dir, _ := os.Getwd()
+	for {
+		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+			return dir
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return ""
+		}
+		dir = parent
+	}
+}
 
 // Minimal base CRD for testing
 var testBaseCRD = []byte(`
@@ -117,11 +134,10 @@ func TestPatch_EmptyRegistry(t *testing.T) {
 }
 
 func TestGenerate(t *testing.T) {
-	// Generate uses a test base CRD path and registry with test providers
-	// Skip if running without the actual base CRD file
-	result, err := Generate(DefaultBaseCRDPath, adapter.DefaultRegistry())
+	baseCRDPath := filepath.Join(findModuleRoot(), DefaultBaseCRDPath)
+	result, err := Generate(baseCRDPath, adapter.DefaultRegistry())
 	if err != nil {
-		t.Skipf("Skipping TestGenerate (base CRD not available): %v", err)
+		t.Fatalf("Generate failed: %v", err)
 	}
 
 	snaps.MatchSnapshot(t, string(result))
