@@ -44,7 +44,7 @@
             pname = "secret-manager";
             version = "0.1.0";
             src = self;
-            vendorHash = "sha256-VoGrQbgmGZgo1EI2ddoLyv0+nJtYPaC1NMO/OncLt00=";
+            vendorHash = "sha256-bbJlyAm1kVb534ewlTflDCo46w0zsgFubzByURZGaR0=";
             subPackages = [ "cmd" ];
             ldflags = [
               "-s"
@@ -56,16 +56,18 @@
         devShells.default = pkgs.mkShell {
           hardeningDisable = [ "fortify" ];
           name = "secret-manager";
-          buildInputs = (with pkgs; [
-            go
-            just
-            operator-sdk
-            golangci-lint
-            kubernetes-controller-tools
-            kustomize
-          ]) ++ [
-            godogen.packages.${system}.default
-          ];
+          buildInputs =
+            (with pkgs; [
+              go
+              just
+              operator-sdk
+              golangci-lint
+              kubernetes-controller-tools
+              kustomize
+            ])
+            ++ [
+              godogen.packages.${system}.default
+            ];
         };
 
         # run with `nix fmt`

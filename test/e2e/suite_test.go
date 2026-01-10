@@ -9,6 +9,10 @@ import (
 )
 
 func TestFeatures(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping e2e tests in short mode")
+	}
+
 	godogOpts := godog.Options{
 		Format:      "pretty",
 		Output:      colors.Colored(os.Stdout),

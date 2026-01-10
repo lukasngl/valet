@@ -26,6 +26,7 @@ func (m *mockProvider) ConfigSchema() *adapter.Schema { return m.schema }
 func (m *mockProvider) Validate(json.RawMessage) error {
 	return nil
 }
+
 func (m *mockProvider) Provision(context.Context, json.RawMessage) (*adapter.Result, error) {
 	return &adapter.Result{
 		StringData:    map[string]string{"key": "value"},
@@ -250,7 +251,6 @@ func TestHandleDeletion_NoFinalizer(t *testing.T) {
 
 	ctx := context.Background()
 	result, err := r.handleDeletion(ctx, cs, mock)
-
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
 	}

@@ -1,5 +1,9 @@
 # Secret Manager Operator
 
+[![CI](https://github.com/lukasngl/secret-manager/actions/workflows/ci.yaml/badge.svg)](https://github.com/lukasngl/secret-manager/actions/workflows/ci.yaml)
+[![codecov](https://codecov.io/github/lukasngl/secret-manager/graph/badge.svg?token=KFUG301E2O)](https://codecov.io/github/lukasngl/secret-manager)
+[![built with nix](https://builtwithnix.org/badge.svg)](https://builtwithnix.org)
+
 > **Work in Progress** - This operator is under active development and not yet production-ready.
 
 A Kubernetes operator that automatically provisions and rotates secrets from external providers. Currently supports Azure AD client secrets with a plugin architecture for additional providers.
@@ -65,28 +69,30 @@ Anyone with `clientsecret-editor-role` can request credentials for **any** Azure
 Custom providers can be added by implementing the `Provider` interface in `internal/adapter/` and registering via `init()`. Each provider defines its own config schema using struct tags:
 
 ```go
-// internal/adapter/myprovider.go
-package adapter
+// internal/adapter/myprovider/myprovider.go
+package myprovider
 
-type MyProviderConfig struct {
+import "github.com/lukasngl/secret-manager/internal/adapter"
+
+type Config struct {
     ProjectID string `json:"projectId" jsonschema:"required"`
     // ...
 }
 
-var myProviderConfigSchema = MustSchema(&MyProviderConfig{})
+var configSchema = adapter.MustSchema(Config{})
 
-type MyProvider struct{}
+type Provider struct{}
 
 func init() {
-    register(&MyProvider{})
+    adapter.DefaultRegistry().Register(&Provider{})
 }
 
-func (p *MyProvider) Type() string           { return "myprovider" }
-func (p *MyProvider) ConfigSchema() *Schema  { return myProviderConfigSchema }
+func (p *Provider) Type() string                  { return "myprovider" }
+func (p *Provider) ConfigSchema() *adapter.Schema { return configSchema }
 // ... implement Validate, Provision, DeleteKey
 ```
 
-Run `make generate manifests` to regenerate the CRD with the new provider's schema.
+Run `just gen` to regenerate the CRD with the new provider's schema.
 
 ## Running Locally
 
@@ -140,12 +146,12 @@ helm install secret-manager ./charts/secret-manager \
 
 ## Roadmap
 
-- [ ] Unit and integration tests
+- [x] Unit and e2e tests
+- [x] CI/CD pipeline with automated releases
 - [ ] Prometheus metrics (provisioning latency, failure counts, key age)
 - [ ] Kubernetes Events for provisioning/rotation/errors
 - [ ] Additional providers (AWS Secrets Manager, GCP Secret Manager, HashiCorp Vault)
 - [ ] Namespace-scoped ObjectID allowlists for fine-grained access control
-- [ ] CI/CD pipeline with automated releases
 
 ## License
 
