@@ -101,7 +101,3 @@ func MustSchema(v any) *Schema {
 
 	return &Schema{raw: raw, compiled: compiled}
 }
-
-func ptr[T any](v T) *T {
-	return &v
-}

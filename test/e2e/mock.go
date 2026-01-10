@@ -19,6 +19,18 @@ type MockConfig struct {
 	// FailureMessage is the error message when ShouldFail is true.
 	FailureMessage string `json:"failureMessage,omitempty"`
 
+	// ShouldFailValidation causes Validate to return an error.
+	ShouldFailValidation bool `json:"shouldFailValidation,omitempty"`
+
+	// ValidationError is the error message when ShouldFailValidation is true.
+	ValidationError string `json:"validationError,omitempty"`
+
+	// ShouldFailDeleteKey causes DeleteKey to return an error.
+	ShouldFailDeleteKey bool `json:"shouldFailDeleteKey,omitempty"`
+
+	// DeleteKeyError is the error message when ShouldFailDeleteKey is true.
+	DeleteKeyError string `json:"deleteKeyError,omitempty"`
+
 	// Delay adds a delay before returning from Provision.
 	Delay string `json:"delay,omitempty"`
 
@@ -65,7 +77,23 @@ func (m *MockProvider) ConfigSchema() *adapter.Schema {
 
 // Validate validates the config against the schema.
 func (m *MockProvider) Validate(config json.RawMessage) error {
-	return m.schema.Validate(config)
+	if err := m.schema.Validate(config); err != nil {
+		return err
+	}
+
+	// Check for test-controlled validation failure
+	var cfg MockConfig
+	if err := json.Unmarshal(config, &cfg); err != nil {
+		return err
+	}
+	if cfg.ShouldFailValidation {
+		msg := cfg.ValidationError
+		if msg == "" {
+			msg = "mock validation failure"
+		}
+		return errors.New(msg)
+	}
+	return nil
 }
 
 // Provision returns secret data based on the config.
@@ -115,9 +143,21 @@ func (m *MockProvider) Provision(ctx context.Context, config json.RawMessage) (*
 	}, nil
 }
 
-// DeleteKey records the deletion and returns nil.
-func (m *MockProvider) DeleteKey(_ context.Context, _ json.RawMessage, keyID string) error {
+// DeleteKey records the deletion and returns nil or an error if configured.
+func (m *MockProvider) DeleteKey(_ context.Context, config json.RawMessage, keyID string) error {
 	m.DeleteKeyCalls = append(m.DeleteKeyCalls, keyID)
+
+	var cfg MockConfig
+	if err := json.Unmarshal(config, &cfg); err != nil {
+		return err
+	}
+	if cfg.ShouldFailDeleteKey {
+		msg := cfg.DeleteKeyError
+		if msg == "" {
+			msg = "mock delete key failure"
+		}
+		return errors.New(msg)
+	}
 	return nil
 }
 

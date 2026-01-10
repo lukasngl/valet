@@ -38,12 +38,8 @@ e2e:
     go test ./test/e2e/... -v -timeout 10m
 
 # Run golangci-lint
-lint:
-    golangci-lint run
-
-# Run golangci-lint with fixes
-lint-fix:
-    golangci-lint run --fix
+lint *args:
+    golangci-lint run {{ args }}
 
 # Build manager binary
 build: gen fmt vet

@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/cucumber/godog"
@@ -16,6 +17,7 @@ import (
 	"github.com/testcontainers/testcontainers-go/modules/k3s"
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/rest"
@@ -174,6 +176,30 @@ func iCreateAClientSecret(ctx context.Context, doc *godog.DocString) error {
 	return sctx.k8sClient.Create(sctx.ctx, &cs)
 }
 
+//godogen:when ^I update the ClientSecret "([^"]*)" with:$
+func iUpdateTheClientSecretWith(ctx context.Context, name string, doc *godog.DocString) error {
+	sctx := getScenarioContext(ctx)
+
+	// Get existing ClientSecret
+	var existing secretmanagerv1alpha1.ClientSecret
+	if err := sctx.k8sClient.Get(sctx.ctx, client.ObjectKey{
+		Namespace: "default",
+		Name:      name,
+	}, &existing); err != nil {
+		return err
+	}
+
+	// Parse the new spec
+	var patch secretmanagerv1alpha1.ClientSecret
+	if err := yaml.Unmarshal([]byte(doc.Content), &patch); err != nil {
+		return err
+	}
+
+	// Update the spec
+	existing.Spec = patch.Spec
+	return sctx.k8sClient.Update(sctx.ctx, &existing)
+}
+
 //godogen:then ^the ClientSecret "([^"]*)" should have phase "([^"]*)"$
 func theClientSecretShouldHavePhase(ctx context.Context, name, phase string) error {
 	return theClientSecretShouldHavePhaseWithin(ctx, name, phase, 30)
@@ -254,6 +280,210 @@ func theSecretShouldContainKeyWithValue(ctx context.Context, name, key, value st
 		return fmt.Errorf("key %q has value %q, expected %q", key, string(actual), value)
 	}
 	return nil
+}
+
+//godogen:then ^the Secret "([^"]*)" should not exist$
+func theSecretShouldNotExist(ctx context.Context, name string) error {
+	sctx := getScenarioContext(ctx)
+	var secret corev1.Secret
+	err := sctx.k8sClient.Get(sctx.ctx, client.ObjectKey{
+		Namespace: "default",
+		Name:      name,
+	}, &secret)
+	if err == nil {
+		return fmt.Errorf("secret %q exists but should not", name)
+	}
+	return client.IgnoreNotFound(err)
+}
+
+//godogen:then ^the Secret "([^"]*)" should not exist within (\d+) seconds$
+func theSecretShouldNotExistWithin(ctx context.Context, name string, seconds int) error {
+	sctx := getScenarioContext(ctx)
+	timeout := time.Duration(seconds) * time.Second
+	deadline := time.Now().Add(timeout)
+
+	for time.Now().Before(deadline) {
+		var secret corev1.Secret
+		err := sctx.k8sClient.Get(sctx.ctx, client.ObjectKey{
+			Namespace: "default",
+			Name:      name,
+		}, &secret)
+		if err != nil {
+			return client.IgnoreNotFound(err)
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+
+	return fmt.Errorf("secret %q still exists after %d seconds", name, seconds)
+}
+
+//godogen:when ^I delete the ClientSecret "([^"]*)"$
+func iDeleteTheClientSecret(ctx context.Context, name string) error {
+	sctx := getScenarioContext(ctx)
+	cs := &secretmanagerv1alpha1.ClientSecret{}
+	cs.Name = name
+	cs.Namespace = "default"
+	return sctx.k8sClient.Delete(sctx.ctx, cs)
+}
+
+//godogen:then ^the ClientSecret "([^"]*)" should not exist within (\d+) seconds$
+func theClientSecretShouldNotExistWithin(ctx context.Context, name string, seconds int) error {
+	sctx := getScenarioContext(ctx)
+	timeout := time.Duration(seconds) * time.Second
+	deadline := time.Now().Add(timeout)
+
+	for time.Now().Before(deadline) {
+		var cs secretmanagerv1alpha1.ClientSecret
+		err := sctx.k8sClient.Get(sctx.ctx, client.ObjectKey{
+			Namespace: "default",
+			Name:      name,
+		}, &cs)
+		if err != nil {
+			return client.IgnoreNotFound(err)
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+
+	return fmt.Errorf("ClientSecret %q still exists after %d seconds", name, seconds)
+}
+
+//godogen:then ^the ClientSecret "([^"]*)" status should contain message "([^"]*)"$
+func theClientSecretStatusShouldContainMessage(ctx context.Context, name, message string) error {
+	sctx := getScenarioContext(ctx)
+	var cs secretmanagerv1alpha1.ClientSecret
+	if err := sctx.k8sClient.Get(sctx.ctx, client.ObjectKey{
+		Namespace: "default",
+		Name:      name,
+	}, &cs); err != nil {
+		return err
+	}
+
+	if cs.Status.LastFailureMessage == "" {
+		return fmt.Errorf("ClientSecret %q has no failure message", name)
+	}
+
+	if !strings.Contains(cs.Status.LastFailureMessage, message) {
+		return fmt.Errorf(
+			"ClientSecret %q failure message %q does not contain %q",
+			name, cs.Status.LastFailureMessage, message)
+	}
+	return nil
+}
+
+//godogen:then ^the mock provider should have received (\d+) provision calls$
+func theMockProviderShouldHaveReceivedProvisionCalls(ctx context.Context, count int) error {
+	sctx := getScenarioContext(ctx)
+	actual := len(sctx.mock.ProvisionCalls)
+	if actual != count {
+		return fmt.Errorf("expected %d provision calls, got %d", count, actual)
+	}
+	return nil
+}
+
+//godogen:then ^the mock provider should have received at least (\d+) provision calls$
+func theMockProviderShouldHaveReceivedAtLeastProvisionCalls(ctx context.Context, count int) error {
+	sctx := getScenarioContext(ctx)
+	actual := len(sctx.mock.ProvisionCalls)
+	if actual < count {
+		return fmt.Errorf("expected at least %d provision calls, got %d", count, actual)
+	}
+	return nil
+}
+
+//godogen:then ^the mock provider should have received (\d+) delete key calls$
+func theMockProviderShouldHaveReceivedDeleteKeyCalls(ctx context.Context, count int) error {
+	sctx := getScenarioContext(ctx)
+	actual := len(sctx.mock.DeleteKeyCalls)
+	if actual != count {
+		return fmt.Errorf("expected %d delete key calls, got %d", count, actual)
+	}
+	return nil
+}
+
+//godogen:then ^the mock provider should have received at least (\d+) delete key calls within (\d+) seconds$
+func theMockProviderShouldHaveReceivedAtLeastDeleteKeyCallsWithin(ctx context.Context, count, seconds int) error {
+	sctx := getScenarioContext(ctx)
+	timeout := time.Duration(seconds) * time.Second
+	deadline := time.Now().Add(timeout)
+
+	var actual int
+	for time.Now().Before(deadline) {
+		actual = len(sctx.mock.DeleteKeyCalls)
+		if actual >= count {
+			return nil
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+
+	return fmt.Errorf("expected at least %d delete key calls, got %d after %d seconds", count, actual, seconds)
+}
+
+//godogen:when ^I expire the credentials for ClientSecret "([^"]*)"$
+func iExpireTheCredentialsForClientSecret(ctx context.Context, name string) error {
+	sctx := getScenarioContext(ctx)
+
+	var cs secretmanagerv1alpha1.ClientSecret
+	if err := sctx.k8sClient.Get(sctx.ctx, client.ObjectKey{
+		Namespace: "default",
+		Name:      name,
+	}, &cs); err != nil {
+		return err
+	}
+
+	// Set all active keys to expired
+	expired := time.Now().Add(-time.Hour)
+	for i := range cs.Status.ActiveKeys {
+		cs.Status.ActiveKeys[i].ExpiresAt = metav1.NewTime(expired)
+	}
+
+	return sctx.k8sClient.Status().Update(sctx.ctx, &cs)
+}
+
+//godogen:then ^the ClientSecret "([^"]*)" should have (\d+) active keys$
+func theClientSecretShouldHaveActiveKeys(ctx context.Context, name string, count int) error {
+	sctx := getScenarioContext(ctx)
+
+	var cs secretmanagerv1alpha1.ClientSecret
+	if err := sctx.k8sClient.Get(sctx.ctx, client.ObjectKey{
+		Namespace: "default",
+		Name:      name,
+	}, &cs); err != nil {
+		return err
+	}
+
+	actual := len(cs.Status.ActiveKeys)
+	if actual != count {
+		return fmt.Errorf("ClientSecret %q has %d active keys, expected %d", name, actual, count)
+	}
+	return nil
+}
+
+//godogen:then ^the ClientSecret "([^"]*)" should have at least (\d+) active keys within (\d+) seconds$
+func theClientSecretShouldHaveAtLeastActiveKeysWithin(ctx context.Context, name string, count, seconds int) error {
+	sctx := getScenarioContext(ctx)
+	timeout := time.Duration(seconds) * time.Second
+	deadline := time.Now().Add(timeout)
+
+	var lastCount int
+	for time.Now().Before(deadline) {
+		var cs secretmanagerv1alpha1.ClientSecret
+		if err := sctx.k8sClient.Get(sctx.ctx, client.ObjectKey{
+			Namespace: "default",
+			Name:      name,
+		}, &cs); err != nil {
+			time.Sleep(500 * time.Millisecond)
+			continue
+		}
+
+		lastCount = len(cs.Status.ActiveKeys)
+		if lastCount >= count {
+			return nil
+		}
+
+		time.Sleep(500 * time.Millisecond)
+	}
+
+	return fmt.Errorf("ClientSecret %q has %d active keys, expected at least %d", name, lastCount, count)
 }
 
 func waitForCRD(ctx context.Context, c client.Client, name string) error {
