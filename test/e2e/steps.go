@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
@@ -26,6 +27,20 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 )
+
+// defaultNamespace is the Kubernetes namespace used for test resources.
+const defaultNamespace = "default"
+
+// envVarPattern matches ${VAR_NAME} patterns for expansion.
+var envVarPattern = regexp.MustCompile(`\$\{([A-Z_][A-Z0-9_]*)\}`)
+
+// expandEnvVars expands ${VAR_NAME} patterns in the input string.
+func expandEnvVars(s string) string {
+	return envVarPattern.ReplaceAllStringFunc(s, func(match string) string {
+		varName := envVarPattern.FindStringSubmatch(match)[1]
+		return os.Getenv(varName)
+	})
+}
 
 // ScenarioContext holds all state for a single scenario.
 type ScenarioContext struct {
@@ -164,13 +179,32 @@ func theOperatorIsRunning(ctx context.Context) error {
 func iCreateAClientSecret(ctx context.Context, doc *godog.DocString) error {
 	sctx := getScenarioContext(ctx)
 
+	content := expandEnvVars(doc.Content)
 	var cs secretmanagerv1alpha1.ClientSecret
-	if err := yaml.Unmarshal([]byte(doc.Content), &cs); err != nil {
+	if err := yaml.Unmarshal([]byte(content), &cs); err != nil {
 		return err
 	}
 
 	if cs.Namespace == "" {
-		cs.Namespace = "default"
+		cs.Namespace = defaultNamespace
+	}
+
+	return sctx.k8sClient.Create(sctx.ctx, &cs)
+}
+
+//godogen:when ^I create a ClientSecret "([^"]*)" with:$
+func iCreateAClientSecretNamed(ctx context.Context, name string, doc *godog.DocString) error {
+	sctx := getScenarioContext(ctx)
+
+	content := expandEnvVars(doc.Content)
+	var cs secretmanagerv1alpha1.ClientSecret
+	if err := yaml.Unmarshal([]byte(content), &cs); err != nil {
+		return err
+	}
+
+	cs.Name = name
+	if cs.Namespace == "" {
+		cs.Namespace = defaultNamespace
 	}
 
 	return sctx.k8sClient.Create(sctx.ctx, &cs)
@@ -183,7 +217,7 @@ func iUpdateTheClientSecretWith(ctx context.Context, name string, doc *godog.Doc
 	// Get existing ClientSecret
 	var existing secretmanagerv1alpha1.ClientSecret
 	if err := sctx.k8sClient.Get(sctx.ctx, client.ObjectKey{
-		Namespace: "default",
+		Namespace: defaultNamespace,
 		Name:      name,
 	}, &existing); err != nil {
 		return err
@@ -215,7 +249,7 @@ func theClientSecretShouldHavePhaseWithin(ctx context.Context, name, phase strin
 	for time.Now().Before(deadline) {
 		var cs secretmanagerv1alpha1.ClientSecret
 		if err := sctx.k8sClient.Get(sctx.ctx, client.ObjectKey{
-			Namespace: "default",
+			Namespace: defaultNamespace,
 			Name:      name,
 		}, &cs); err != nil {
 			time.Sleep(500 * time.Millisecond)
@@ -238,7 +272,7 @@ func aSecretShouldExist(ctx context.Context, name string) error {
 	sctx := getScenarioContext(ctx)
 	var secret corev1.Secret
 	return sctx.k8sClient.Get(sctx.ctx, client.ObjectKey{
-		Namespace: "default",
+		Namespace: defaultNamespace,
 		Name:      name,
 	}, &secret)
 }
@@ -248,7 +282,7 @@ func theSecretShouldContainKey(ctx context.Context, name, key string) error {
 	sctx := getScenarioContext(ctx)
 	var secret corev1.Secret
 	if err := sctx.k8sClient.Get(sctx.ctx, client.ObjectKey{
-		Namespace: "default",
+		Namespace: defaultNamespace,
 		Name:      name,
 	}, &secret); err != nil {
 		return err
@@ -265,7 +299,7 @@ func theSecretShouldContainKeyWithValue(ctx context.Context, name, key, value st
 	sctx := getScenarioContext(ctx)
 	var secret corev1.Secret
 	if err := sctx.k8sClient.Get(sctx.ctx, client.ObjectKey{
-		Namespace: "default",
+		Namespace: defaultNamespace,
 		Name:      name,
 	}, &secret); err != nil {
 		return err
@@ -287,7 +321,7 @@ func theSecretShouldNotExist(ctx context.Context, name string) error {
 	sctx := getScenarioContext(ctx)
 	var secret corev1.Secret
 	err := sctx.k8sClient.Get(sctx.ctx, client.ObjectKey{
-		Namespace: "default",
+		Namespace: defaultNamespace,
 		Name:      name,
 	}, &secret)
 	if err == nil {
@@ -305,7 +339,7 @@ func theSecretShouldNotExistWithin(ctx context.Context, name string, seconds int
 	for time.Now().Before(deadline) {
 		var secret corev1.Secret
 		err := sctx.k8sClient.Get(sctx.ctx, client.ObjectKey{
-			Namespace: "default",
+			Namespace: defaultNamespace,
 			Name:      name,
 		}, &secret)
 		if err != nil {
@@ -322,7 +356,7 @@ func iDeleteTheClientSecret(ctx context.Context, name string) error {
 	sctx := getScenarioContext(ctx)
 	cs := &secretmanagerv1alpha1.ClientSecret{}
 	cs.Name = name
-	cs.Namespace = "default"
+	cs.Namespace = defaultNamespace
 	return sctx.k8sClient.Delete(sctx.ctx, cs)
 }
 
@@ -335,7 +369,7 @@ func theClientSecretShouldNotExistWithin(ctx context.Context, name string, secon
 	for time.Now().Before(deadline) {
 		var cs secretmanagerv1alpha1.ClientSecret
 		err := sctx.k8sClient.Get(sctx.ctx, client.ObjectKey{
-			Namespace: "default",
+			Namespace: defaultNamespace,
 			Name:      name,
 		}, &cs)
 		if err != nil {
@@ -352,7 +386,7 @@ func theClientSecretStatusShouldContainMessage(ctx context.Context, name, messag
 	sctx := getScenarioContext(ctx)
 	var cs secretmanagerv1alpha1.ClientSecret
 	if err := sctx.k8sClient.Get(sctx.ctx, client.ObjectKey{
-		Namespace: "default",
+		Namespace: defaultNamespace,
 		Name:      name,
 	}, &cs); err != nil {
 		return err
@@ -424,7 +458,7 @@ func iExpireTheCredentialsForClientSecret(ctx context.Context, name string) erro
 
 	var cs secretmanagerv1alpha1.ClientSecret
 	if err := sctx.k8sClient.Get(sctx.ctx, client.ObjectKey{
-		Namespace: "default",
+		Namespace: defaultNamespace,
 		Name:      name,
 	}, &cs); err != nil {
 		return err
@@ -445,7 +479,7 @@ func theClientSecretShouldHaveActiveKeys(ctx context.Context, name string, count
 
 	var cs secretmanagerv1alpha1.ClientSecret
 	if err := sctx.k8sClient.Get(sctx.ctx, client.ObjectKey{
-		Namespace: "default",
+		Namespace: defaultNamespace,
 		Name:      name,
 	}, &cs); err != nil {
 		return err
@@ -468,7 +502,7 @@ func theClientSecretShouldHaveAtLeastActiveKeysWithin(ctx context.Context, name 
 	for time.Now().Before(deadline) {
 		var cs secretmanagerv1alpha1.ClientSecret
 		if err := sctx.k8sClient.Get(sctx.ctx, client.ObjectKey{
-			Namespace: "default",
+			Namespace: defaultNamespace,
 			Name:      name,
 		}, &cs); err != nil {
 			time.Sleep(500 * time.Millisecond)
