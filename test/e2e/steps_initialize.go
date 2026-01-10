@@ -17,6 +17,7 @@ func InitializeSteps(sc *godog.ScenarioContext) {
 	sc.Given(`^the CRDs are installed$`, theCRDsAreInstalled)
 	sc.Given(`^the operator is running$`, theOperatorIsRunning)
 	sc.When(`^I create a ClientSecret:$`, iCreateAClientSecret)
+	sc.When(`^I create a ClientSecret "([^"]*)" with:$`, iCreateAClientSecretNamed)
 	sc.When(`^I update the ClientSecret "([^"]*)" with:$`, iUpdateTheClientSecretWith)
 	sc.Then(`^the ClientSecret "([^"]*)" should have phase "([^"]*)"$`, theClientSecretShouldHavePhase)
 	sc.Then(`^the ClientSecret "([^"]*)" should have phase "([^"]*)" within (\d+) seconds$`, theClientSecretShouldHavePhaseWithin)

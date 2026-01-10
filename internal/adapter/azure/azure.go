@@ -50,11 +50,19 @@ type Config struct {
 // azureConfigSchema holds the generated and compiled JSON Schema for AzureConfig.
 var azureConfigSchema = adapter.MustSchema(&Config{})
 
+const (
+	// retryDelay is the wait time before retrying after a rate limit error.
+	retryDelay = 500 * time.Millisecond
+	// maxRetries is the maximum number of retries for rate-limited requests.
+	maxRetries = 5
+)
+
 // Provider provisions Azure AD client secrets using Microsoft Graph API.
 type Provider struct {
-	client   *msgraphsdk.GraphServiceClient
-	initOnce sync.Once
-	initErr  error
+	client    *msgraphsdk.GraphServiceClient
+	initOnce  sync.Once
+	initErr   error
+	requestMu sync.Mutex // Serialize requests to avoid rate limiting
 }
 
 // initClient initializes the Azure client on first use.
@@ -78,6 +86,48 @@ func (a *Provider) initClient() error {
 		a.client = client
 	})
 	return a.initErr
+}
+
+// isRateLimitError checks if the error is a rate limiting error.
+func isRateLimitError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "concurrent") ||
+		strings.Contains(msg, "throttl") ||
+		strings.Contains(msg, "rate limit") ||
+		strings.Contains(msg, "too many requests")
+}
+
+// withRetry executes the given function with retry logic for rate limiting errors.
+func withRetry[T any](ctx context.Context, fn func() (T, error)) (T, error) {
+	var result T
+	var err error
+
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		result, err = fn()
+		if err == nil || !isRateLimitError(err) {
+			return result, err
+		}
+
+		if attempt < maxRetries {
+			log.FromContext(ctx).Info("rate limited, retrying",
+				"attempt", attempt+1,
+				"delay", retryDelay)
+			time.Sleep(retryDelay)
+		}
+	}
+
+	return result, err
+}
+
+// withRetryNoResult executes the given function with retry logic for rate limiting errors.
+func withRetryNoResult(ctx context.Context, fn func() error) error {
+	_, err := withRetry(ctx, func() (struct{}, error) {
+		return struct{}{}, fn()
+	})
+	return err
 }
 
 // Type returns the provider identifier.
@@ -154,11 +204,17 @@ func (a *Provider) Provision(
 	requestBody := graphapplications.NewItemAddPasswordPostRequestBody()
 	requestBody.SetPasswordCredential(passwordCredential)
 
-	// Call Graph API to add the password
-	passwordResult, err := a.client.Applications().
-		ByApplicationId(config.ObjectID).
-		AddPassword().
-		Post(ctx, requestBody, nil)
+	// Serialize requests to avoid rate limiting
+	a.requestMu.Lock()
+	defer a.requestMu.Unlock()
+
+	// Call Graph API to add the password with retry logic
+	passwordResult, err := withRetry(ctx, func() (graphmodels.PasswordCredentialable, error) {
+		return a.client.Applications().
+			ByApplicationId(config.ObjectID).
+			AddPassword().
+			Post(ctx, requestBody, nil)
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to add password to application %s: %w", config.ObjectID, err)
 	}
@@ -174,7 +230,9 @@ func (a *Provider) Provision(
 	}
 
 	// Get the application to retrieve client ID
-	app, err := a.client.Applications().ByApplicationId(config.ObjectID).Get(ctx, nil)
+	app, err := withRetry(ctx, func() (graphmodels.Applicationable, error) {
+		return a.client.Applications().ByApplicationId(config.ObjectID).Get(ctx, nil)
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get application %s: %w", config.ObjectID, err)
 	}
@@ -234,10 +292,16 @@ func (a *Provider) DeleteKey(ctx context.Context, rawConfig json.RawMessage, key
 	requestBody := graphapplications.NewItemRemovePasswordPostRequestBody()
 	requestBody.SetKeyId(&keyUUID)
 
-	err = a.client.Applications().
-		ByApplicationId(config.ObjectID).
-		RemovePassword().
-		Post(ctx, requestBody, nil)
+	// Serialize requests to avoid rate limiting
+	a.requestMu.Lock()
+	defer a.requestMu.Unlock()
+
+	err = withRetryNoResult(ctx, func() error {
+		return a.client.Applications().
+			ByApplicationId(config.ObjectID).
+			RemovePassword().
+			Post(ctx, requestBody, nil)
+	})
 	if err != nil {
 		// Ignore "not found" errors - key may have been deleted manually
 		if strings.Contains(err.Error(), "No password credential found") {
