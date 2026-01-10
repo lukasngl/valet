@@ -32,23 +32,20 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: Run unit tests
-        run: go test ./... -v -timeout 10m -short -coverprofile=coverage.txt -coverpkg=./internal/...
-
-      - name: Run Azure integration tests
+      - name: Run tests
         env:
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           TEST_AZURE_OWNED_APP_OBJECT_ID: ${{ secrets.TEST_AZURE_OWNED_APP_OBJECT_ID }}
           TEST_AZURE_OTHER_APP_OBJECT_ID: ${{ secrets.TEST_AZURE_OTHER_APP_OBJECT_ID }}
-        run: go test ./test/e2e/... -v -timeout 5m --godog.tags=@azure -coverprofile=coverage-azure.txt -coverpkg=./internal/...
+        run: go test ./... -v -timeout 10m -coverprofile=coverage.txt -coverpkg=./internal/...
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: coverage.txt,coverage-azure.txt
+          files: coverage.txt
           fail_ci_if_error: true
 
   docker:
