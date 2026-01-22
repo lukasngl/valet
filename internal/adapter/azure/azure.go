@@ -6,17 +6,17 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
 	"strings"
 	"sync"
 	"text/template"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/google/uuid"
 	"github.com/lukasngl/secret-manager/internal/adapter"
-	msgraphsdk "github.com/microsoftgraph/msgraph-sdk-go"
-	graphapplications "github.com/microsoftgraph/msgraph-sdk-go/applications"
-	graphmodels "github.com/microsoftgraph/msgraph-sdk-go/models"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
@@ -30,6 +30,9 @@ const (
 
 	// DefaultValidity is the default secret validity duration.
 	DefaultValidity = 90 * 24 * time.Hour // 90 days
+
+	// graphBaseURL is the Microsoft Graph API base URL.
+	graphBaseURL = "https://graph.microsoft.com/v1.0"
 )
 
 // Config defines the configuration for the Azure AD provider.
@@ -59,7 +62,8 @@ const (
 
 // Provider provisions Azure AD client secrets using Microsoft Graph API.
 type Provider struct {
-	client    *msgraphsdk.GraphServiceClient
+	cred      *azidentity.DefaultAzureCredential
+	client    *http.Client
 	initOnce  sync.Once
 	initErr   error
 	requestMu sync.Mutex // Serialize requests to avoid rate limiting
@@ -73,19 +77,54 @@ func (a *Provider) initClient() error {
 			a.initErr = fmt.Errorf("failed to create Azure credential: %w", err)
 			return
 		}
-
-		client, err := msgraphsdk.NewGraphServiceClientWithCredentials(
-			cred,
-			[]string{"https://graph.microsoft.com/.default"},
-		)
-		if err != nil {
-			a.initErr = fmt.Errorf("failed to create Graph client: %w", err)
-			return
-		}
-
-		a.client = client
+		a.cred = cred
+		a.client = &http.Client{Timeout: 30 * time.Second}
 	})
 	return a.initErr
+}
+
+// graphRequest makes an authenticated request to Microsoft Graph API.
+func (a *Provider) graphRequest(ctx context.Context, method, path string, body any) ([]byte, error) {
+	token, err := a.cred.GetToken(ctx, policy.TokenRequestOptions{
+		Scopes: []string{"https://graph.microsoft.com/.default"},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get token: %w", err)
+	}
+
+	var reqBody io.Reader
+	if body != nil {
+		jsonBody, err := json.Marshal(body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal request body: %w", err)
+		}
+		reqBody = bytes.NewReader(jsonBody)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, graphBaseURL+path, reqBody)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Authorization", "Bearer "+token.Token)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := a.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("request failed: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response: %w", err)
+	}
+
+	if resp.StatusCode >= 400 {
+		return nil, fmt.Errorf("graph API error (status %d): %s", resp.StatusCode, string(respBody))
+	}
+
+	return respBody, nil
 }
 
 // isRateLimitError checks if the error is a rate limiting error.
@@ -97,7 +136,8 @@ func isRateLimitError(err error) bool {
 	return strings.Contains(msg, "concurrent") ||
 		strings.Contains(msg, "throttl") ||
 		strings.Contains(msg, "rate limit") ||
-		strings.Contains(msg, "too many requests")
+		strings.Contains(msg, "too many requests") ||
+		strings.Contains(msg, "status 429")
 }
 
 // withRetry executes the given function with retry logic for rate limiting errors.
@@ -169,6 +209,33 @@ func (a *Provider) Validate(rawConfig json.RawMessage) error {
 	return nil
 }
 
+// addPasswordRequest is the request body for addPassword.
+type addPasswordRequest struct {
+	PasswordCredential passwordCredential `json:"passwordCredential"`
+}
+
+// passwordCredential represents a password credential.
+type passwordCredential struct {
+	DisplayName *string    `json:"displayName,omitempty"`
+	EndDateTime *time.Time `json:"endDateTime,omitempty"`
+}
+
+// addPasswordResponse is the response from addPassword.
+type addPasswordResponse struct {
+	KeyID      string `json:"keyId"`
+	SecretText string `json:"secretText"`
+}
+
+// applicationResponse is the response from getting an application.
+type applicationResponse struct {
+	AppID string `json:"appId"`
+}
+
+// removePasswordRequest is the request body for removePassword.
+type removePasswordRequest struct {
+	KeyID string `json:"keyId"`
+}
+
 // Provision creates a new client secret for an Azure AD application.
 func (a *Provider) Provision(
 	ctx context.Context,
@@ -197,55 +264,51 @@ func (a *Provider) Provision(
 	endDateTime := now.Add(validity)
 	displayName := fmt.Sprintf("secret-manager-%s", now.Format("2006-01-02"))
 
-	passwordCredential := graphmodels.NewPasswordCredential()
-	passwordCredential.SetDisplayName(&displayName)
-	passwordCredential.SetEndDateTime(&endDateTime)
-
-	requestBody := graphapplications.NewItemAddPasswordPostRequestBody()
-	requestBody.SetPasswordCredential(passwordCredential)
+	reqBody := addPasswordRequest{
+		PasswordCredential: passwordCredential{
+			DisplayName: &displayName,
+			EndDateTime: &endDateTime,
+		},
+	}
 
 	// Serialize requests to avoid rate limiting
 	a.requestMu.Lock()
 	defer a.requestMu.Unlock()
 
 	// Call Graph API to add the password with retry logic
-	passwordResult, err := withRetry(ctx, func() (graphmodels.PasswordCredentialable, error) {
-		return a.client.Applications().
-			ByApplicationId(config.ObjectID).
-			AddPassword().
-			Post(ctx, requestBody, nil)
+	respBody, err := withRetry(ctx, func() ([]byte, error) {
+		return a.graphRequest(ctx, "POST", "/applications/"+config.ObjectID+"/addPassword", reqBody)
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to add password to application %s: %w", config.ObjectID, err)
 	}
 
-	secretText := passwordResult.GetSecretText()
-	if secretText == nil || *secretText == "" {
+	var passwordResult addPasswordResponse
+	if err := json.Unmarshal(respBody, &passwordResult); err != nil {
+		return nil, fmt.Errorf("failed to parse addPassword response: %w", err)
+	}
+
+	if passwordResult.SecretText == "" {
 		return nil, errors.New("no secret text returned from Graph API")
 	}
 
-	keyID := ""
-	if passwordResult.GetKeyId() != nil {
-		keyID = passwordResult.GetKeyId().String()
-	}
-
 	// Get the application to retrieve client ID
-	app, err := withRetry(ctx, func() (graphmodels.Applicationable, error) {
-		return a.client.Applications().ByApplicationId(config.ObjectID).Get(ctx, nil)
+	appBody, err := withRetry(ctx, func() ([]byte, error) {
+		return a.graphRequest(ctx, "GET", "/applications/"+config.ObjectID, nil)
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get application %s: %w", config.ObjectID, err)
 	}
 
-	clientID := ""
-	if app.GetAppId() != nil {
-		clientID = *app.GetAppId()
+	var app applicationResponse
+	if err := json.Unmarshal(appBody, &app); err != nil {
+		return nil, fmt.Errorf("failed to parse application response: %w", err)
 	}
 
 	// Render templates
 	templateData := map[string]string{
-		"ClientID":     clientID,
-		"ClientSecret": *secretText,
+		"ClientID":     app.AppID,
+		"ClientSecret": passwordResult.SecretText,
 	}
 
 	data := make(map[string]string)
@@ -261,7 +324,7 @@ func (a *Provider) Provision(
 		StringData:    data,
 		ProvisionedAt: now,
 		ValidUntil:    endDateTime,
-		KeyID:         keyID,
+		KeyID:         passwordResult.KeyID,
 	}, nil
 }
 
@@ -284,23 +347,19 @@ func (a *Provider) DeleteKey(ctx context.Context, rawConfig json.RawMessage, key
 		return errors.New("objectId is required")
 	}
 
-	keyUUID, err := uuid.Parse(keyID)
-	if err != nil {
+	if _, err := uuid.Parse(keyID); err != nil {
 		return fmt.Errorf("invalid key ID %q: %w", keyID, err)
 	}
 
-	requestBody := graphapplications.NewItemRemovePasswordPostRequestBody()
-	requestBody.SetKeyId(&keyUUID)
+	reqBody := removePasswordRequest{KeyID: keyID}
 
 	// Serialize requests to avoid rate limiting
 	a.requestMu.Lock()
 	defer a.requestMu.Unlock()
 
-	err = withRetryNoResult(ctx, func() error {
-		return a.client.Applications().
-			ByApplicationId(config.ObjectID).
-			RemovePassword().
-			Post(ctx, requestBody, nil)
+	err := withRetryNoResult(ctx, func() error {
+		_, err := a.graphRequest(ctx, "POST", "/applications/"+config.ObjectID+"/removePassword", reqBody)
+		return err
 	})
 	if err != nil {
 		// Ignore "not found" errors - key may have been deleted manually
