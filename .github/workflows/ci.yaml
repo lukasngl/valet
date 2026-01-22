@@ -2,16 +2,42 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, ci-test-release]
+    tags:
+      - "v*"
   pull_request:
     branches: [main]
 
 permissions:
   contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  check:
+  nix-matrix:
     runs-on: ubuntu-latest
+    outputs:
+      checks: ${{ steps.set.outputs.checks }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: DeterminateSystems/nix-installer-action@main
+
+      - id: set
+        run: |
+          checks=$(nix flake show --json 2>/dev/null | jq -c '[.checks."x86_64-linux" | to_entries[] | {check: .key}]')
+          echo "checks=$checks" >> "$GITHUB_OUTPUT"
+
+  check:
+    needs: nix-matrix
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.nix-matrix.outputs.checks) }}
     steps:
       - uses: actions/checkout@v4
 
@@ -19,8 +45,8 @@ jobs:
 
       - uses: DeterminateSystems/magic-nix-cache-action@main
 
-      - name: Run nix checks
-        run: nix flake check -L
+      - name: Run ${{ matrix.check }}
+        run: nix build .#checks.x86_64-linux.${{ matrix.check }} -L
 
   test:
     runs-on: ubuntu-latest
@@ -48,20 +74,74 @@ jobs:
           files: coverage.txt
           fail_ci_if_error: true
 
-  docker:
-    runs-on: ubuntu-latest
+  push-nightly:
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/ci-test-release'
     needs: [check, test]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - uses: DeterminateSystems/nix-installer-action@main
 
-      - name: Build Docker image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          push: false
-          tags: secret-manager:${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+      - uses: DeterminateSystems/magic-nix-cache-action@main
+
+      - name: Get nightly tag
+        id: version
+        run: |
+          VERSION=$(cat version.txt)
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          echo "tag=${VERSION}-dev.${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+
+      - name: Write dev version
+        run: echo "${{ steps.version.outputs.tag }}" > version.txt
+
+      - name: Build and push image
+        run: |
+          nix develop -c just image-push \
+            --dest-creds=token:${{ secrets.GITHUB_TOKEN }} \
+            --additional-tag=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.tag }}
+
+      - name: Package and push Helm chart
+        run: |
+          echo "${{ github.token }}" | nix develop -c helm registry login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin
+          nix develop -c helm package charts/secret-manager \
+            --version ${{ steps.version.outputs.tag }} \
+            --app-version ${{ steps.version.outputs.tag }}
+          nix develop -c helm push secret-manager-*.tgz oci://${{ env.REGISTRY }}/${{ github.repository_owner }}/charts
+
+  push-release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [check, test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: DeterminateSystems/nix-installer-action@main
+
+      - uses: DeterminateSystems/magic-nix-cache-action@main
+
+      - name: Get version tags
+        id: version
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          MAJOR=$(echo $VERSION | cut -d. -f1)
+          MINOR=$(echo $VERSION | cut -d. -f2)
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "major_minor=${MAJOR}.${MINOR}" >> "$GITHUB_OUTPUT"
+          echo "major=${MAJOR}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push image
+        run: |
+          nix develop -c just image-push \
+            --dest-creds=token:${{ secrets.GITHUB_TOKEN }} \
+            --additional-tag=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }} \
+            --additional-tag=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.major_minor }} \
+            --additional-tag=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.major }}
+
+      - name: Package and push Helm chart
+        run: |
+          echo "${{ github.token }}" | nix develop -c helm registry login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin
+          nix develop -c helm package charts/secret-manager \
+            --version ${{ steps.version.outputs.version }} \
+            --app-version ${{ steps.version.outputs.version }}
+          nix develop -c helm push secret-manager-*.tgz oci://${{ env.REGISTRY }}/${{ github.repository_owner }}/charts

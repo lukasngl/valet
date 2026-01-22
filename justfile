@@ -1,6 +1,6 @@
 default: build
 
-img := "ghcr.io/lukasngl/secret-manager:latest"
+registry := "ghcr.io/lukasngl/secret-manager"
 
 # Show available recipes
 help:
@@ -49,9 +49,19 @@ build: gen fmt vet
 run: gen fmt vet
     go run ./cmd/main.go
 
-# Build docker image
-docker-build:
-    docker build -t {{ img }} .
+# Build container image with nix
+image-build:
+    nix build .#image --print-out-paths --print-build-logs
+
+# Push container image to registry
+image-push *skopeo_args:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    image_script=$(nix build .#image --no-link --print-out-paths)
+    tag=$(nix eval --raw .#image.imageTag)
+    $image_script | skopeo copy {{ skopeo_args }} \
+        docker-archive:/dev/stdin \
+        docker://{{ registry }}:${tag}
 
 # Install CRDs into cluster
 install: gen
