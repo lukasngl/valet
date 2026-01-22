@@ -60,11 +60,11 @@ spec:
                                 - properties:
                                     config: {}
                                     provider:
-                                        const: simple
+                                        const: complex
                                 - properties:
                                     config: {}
                                     provider:
-                                        const: complex
+                                        const: simple
                         properties:
                             config:
                                 type: object

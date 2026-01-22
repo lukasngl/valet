@@ -72,18 +72,18 @@ func (t *testProvider) Provision(context.Context, json.RawMessage) (*adapter.Res
 func (t *testProvider) DeleteKey(context.Context, json.RawMessage, string) error { return nil }
 
 type simpleConfig struct {
-	APIKey string `json:"apiKey" jsonschema:"required"`
+	APIKey string `json:"apiKey"           jsonschema:"required"`
 	Region string `json:"region,omitempty"`
 }
 
 type complexConfig struct {
-	Endpoint string            `json:"endpoint" jsonschema:"required"`
-	Auth     authConfig        `json:"auth" jsonschema:"required"`
+	Endpoint string            `json:"endpoint"       jsonschema:"required"`
+	Auth     authConfig        `json:"auth"           jsonschema:"required"`
 	Tags     map[string]string `json:"tags,omitempty"`
 }
 
 type authConfig struct {
-	Type   string `json:"type" jsonschema:"required,enum=basic,enum=token"`
+	Type   string `json:"type"   jsonschema:"required,enum=basic,enum=token"`
 	Secret string `json:"secret" jsonschema:"required"`
 }
 

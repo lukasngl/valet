@@ -3,6 +3,7 @@ package adapter
 import (
 	"iter"
 	"maps"
+	"slices"
 )
 
 type Registry map[string]Provider
@@ -30,17 +31,17 @@ func (r Registry) All() iter.Seq2[string, Provider] {
 	return maps.All(r)
 }
 
-// ConfigSchema builds the tagged union of all confgiures providers,
+// ConfigSchema builds the tagged union of all configured providers,
 // as a oneOf schema for provider-specific config validation.
-func (r *Registry) ConfigSchema() []map[string]any {
-	// Build oneOf variants from all providers
+func (r Registry) ConfigSchema() []map[string]any {
+	// Build oneOf variants from all providers (sorted for stable output)
 	oneOf := make([]map[string]any, 0)
 
-	for typ, provider := range r.All() {
+	for _, typ := range slices.Sorted(maps.Keys(r)) {
 		oneOf = append(oneOf, map[string]any{
 			"properties": map[string]any{
 				"provider": map[string]any{"const": typ},
-				"config":   provider.ConfigSchema(),
+				"config":   r[typ].ConfigSchema(),
 			},
 		})
 	}
