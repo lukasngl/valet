@@ -47,6 +47,9 @@ func main() {
 	}
 }
 
+// version is set via -ldflags "-X main.version=..."
+var version = "dev"
+
 var (
 	scheme   = runtime.NewScheme()
 	setupLog = ctrl.Log.WithName("setup")
@@ -167,7 +170,7 @@ func run() error {
 		return err
 	}
 
-	setupLog.Info("starting manager")
+	setupLog.Info("starting manager", "version", version)
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		setupLog.Error(err, "problem running manager")
 		return err

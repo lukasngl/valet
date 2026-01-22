@@ -25,7 +25,8 @@
           "type": "yaml",
           "path": "charts/secret-manager/Chart.yaml",
           "jsonpath": "$.appVersion"
-        }
+        },
+        "version.txt"
       ]
     }
   }

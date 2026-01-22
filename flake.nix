@@ -19,18 +19,20 @@
     flake-utils.lib.eachDefaultSystem (
       system:
       let
+        vendorHash = "sha256-zRuoxP0EKbUUdknrAlMUMVCJJBKmBtSTzgOfljJyW1g=";
         pkgs = import nixpkgs {
           inherit system;
         };
         self' = builtins.mapAttrs (name: value: value.${system} or value) self;
         treefmt = treefmt-nix.lib.evalModule pkgs ./treefmt.nix;
+        version = builtins.replaceStrings [ "\n" ] [ "" ] (builtins.readFile ./version.txt);
         withPackageEnv =
           {
             name,
             buildPhase,
             extraBuildInputs ? [ ],
           }:
-          self'.packages.secret-manager.overrideAttrs (old: {
+          self'.packages.secret-manager-uncompressed.overrideAttrs (old: {
             inherit name buildPhase;
             nativeBuildInputs = old.nativeBuildInputs ++ extraBuildInputs;
             doCheck = false;
@@ -40,16 +42,41 @@
       {
         packages = rec {
           default = secret-manager;
-          secret-manager = pkgs.buildGoModule {
+          secret-manager-uncompressed = pkgs.buildGoModule {
             pname = "secret-manager";
-            version = "0.1.0";
+            inherit vendorHash version;
             src = self;
-            vendorHash = "sha256-bbJlyAm1kVb534ewlTflDCo46w0zsgFubzByURZGaR0=";
             subPackages = [ "cmd" ];
+            tags = [ "netgo" ];
             ldflags = [
               "-s"
               "-w"
+              "-X main.version=${version}"
             ];
+            postInstall = ''
+              mv $out/bin/cmd $out/bin/secret-manager
+            '';
+            meta.mainProgram = "secret-manager";
+          };
+          secret-manager = pkgs.stdenvNoCC.mkDerivation {
+            inherit (secret-manager-uncompressed) pname version meta;
+            dontUnpack = true;
+            nativeBuildInputs = [ pkgs.upx ];
+            buildPhase = ''
+              mkdir -p $out/bin
+              upx -o $out/bin/secret-manager ${secret-manager-uncompressed}/bin/secret-manager
+            '';
+          };
+          image = pkgs.dockerTools.streamLayeredImage {
+            name = "secret-manager";
+            contents = [
+              pkgs.dockerTools.caCertificates
+            ];
+            config = {
+              Entrypoint = [ "${secret-manager}/bin/secret-manager" ];
+              User = "65532:65532";
+              WorkingDir = "/";
+            };
           };
         };
 
@@ -63,7 +90,9 @@
               operator-sdk
               golangci-lint
               kubernetes-controller-tools
+              kubernetes-helm
               kustomize
+              skopeo
             ])
             ++ [
               godogen.packages.${system}.default
