@@ -26,6 +26,10 @@
         self' = builtins.mapAttrs (name: value: value.${system} or value) self;
         treefmt = treefmt-nix.lib.evalModule pkgs ./treefmt.nix;
         version = builtins.replaceStrings [ "\n" ] [ "" ] (builtins.readFile ./version.txt);
+        envtest-binaries = pkgs.linkFarm "envtest-binaries" {
+          etcd = "${pkgs.etcd}/bin/etcd";
+          kube-apiserver = "${pkgs.kubernetes}/bin/kube-apiserver";
+        };
         withPackageEnv =
           {
             name,
@@ -80,6 +84,18 @@
           };
         };
 
+        devShells.ci = pkgs.mkShell {
+          name = "secret-manager-ci";
+          buildInputs = with pkgs; [
+            go
+            gotestsum
+          ];
+          GOFLAGS = "-mod=vendor";
+          shellHook = ''
+            ln -sfn ${self'.packages.secret-manager-uncompressed.goModules} vendor
+          '';
+        };
+
         devShells.default = pkgs.mkShell {
           hardeningDisable = [ "fortify" ];
           name = "secret-manager";
@@ -97,6 +113,7 @@
             ++ [
               godogen.packages.${system}.default
             ];
+          KUBEBUILDER_ASSETS = "${envtest-binaries}";
         };
 
         # run with `nix fmt`
