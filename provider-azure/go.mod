@@ -1,11 +1,11 @@
-module github.com/lukasngl/client-secret-operator/provider-azure
+module github.com/lukasngl/valet/provider-azure
 
 go 1.25.0
 
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.18.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.9.0
-	github.com/lukasngl/client-secret-operator/framework v0.0.0
+	github.com/lukasngl/valet/framework v0.0.0
 	k8s.io/api v0.35.1
 	k8s.io/apimachinery v0.35.1
 	k8s.io/client-go v0.35.0

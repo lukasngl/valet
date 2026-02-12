@@ -1,11 +1,11 @@
-module github.com/lukasngl/client-secret-operator/provider-mock
+module github.com/lukasngl/valet/provider-mock
 
 go 1.25.0
 
 require (
 	github.com/cucumber/godog v0.15.1
 	github.com/google/uuid v1.6.0
-	github.com/lukasngl/client-secret-operator/framework v0.0.0
+	github.com/lukasngl/valet/framework v0.0.0
 	k8s.io/api v0.35.1
 	k8s.io/apimachinery v0.35.1
 	k8s.io/client-go v0.35.0

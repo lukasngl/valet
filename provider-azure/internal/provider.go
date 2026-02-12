@@ -16,8 +16,8 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
-	"github.com/lukasngl/client-secret-operator/framework"
-	"github.com/lukasngl/client-secret-operator/provider-azure/api/v1alpha1"
+	"github.com/lukasngl/valet/framework"
+	"github.com/lukasngl/valet/provider-azure/api/v1alpha1"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
@@ -66,7 +66,7 @@ func (p *Provider) Provision(
 
 	now := time.Now()
 	endDateTime := now.Add(validity)
-	displayName := fmt.Sprintf("cso-%s", now.Format("2006-01-02"))
+	displayName := fmt.Sprintf("valet-%s", now.Format("2006-01-02"))
 
 	reqBody := addPasswordRequest{
 		PasswordCredential: passwordCredential{

@@ -1,16 +1,11 @@
 { inputs, ... }:
 {
   perSystem =
-    {
-      pkgs,
-      mkGoModule,
-      withPackageEnv,
-      envtest-binaries,
-      version,
-      ...
-    }:
+    { config, pkgs, ... }:
     let
-      provider-mock = mkGoModule {
+      valet = config.valet.lib;
+
+      provider-mock = valet.mkGoModule {
         pname = "provider-mock";
         subPackages = [ "provider-mock/cmd" ];
         postInstall = ''
@@ -31,7 +26,7 @@
 
       image = pkgs.dockerTools.streamLayeredImage {
         name = "provider-mock";
-        tag = version;
+        tag = valet.version;
         contents = [ pkgs.dockerTools.caCertificates ];
         config = {
           Entrypoint = [ "${provider-mock-compressed}/bin/provider-mock" ];
@@ -46,23 +41,12 @@
         provider-mock-image = image;
       };
 
-      checks.provider-mock-helm-lint =
-        pkgs.runCommand "provider-mock-helm-lint"
-          {
-            nativeBuildInputs = with pkgs; [
-              kubernetes-helm
-              kubeconform
-            ];
-          }
-          ''
-            chart=${inputs.self}/provider-mock/charts/provider-mock
-            helm lint "$chart"
-            helm template test "$chart" -f "$chart/values.kubeconform.yaml" \
-              | kubeconform -strict -summary
-            touch $out
-          '';
+      checks.provider-mock-helm = valet.packageChart {
+        name = "provider-mock";
+        src = "${inputs.self}/provider-mock/charts/provider-mock";
+      };
 
-      checks.provider-mock-lint = withPackageEnv provider-mock {
+      checks.provider-mock-lint = valet.withPackageEnv provider-mock {
         name = "provider-mock-lint";
         extraBuildInputs = [ pkgs.golangci-lint ];
         buildPhase = ''
@@ -71,7 +55,7 @@
         '';
       };
 
-      checks.provider-mock-test = withPackageEnv provider-mock {
+      checks.provider-mock-test = valet.withPackageEnv provider-mock {
         name = "provider-mock-test";
         extraBuildInputs = [
           pkgs.gotestsum
@@ -80,7 +64,7 @@
         ];
         buildPhase = ''
           export HOME=$(mktemp -d)
-          export KUBEBUILDER_ASSETS=${envtest-binaries}
+          export KUBEBUILDER_ASSETS=${valet.envtestBinaries}
           gotestsum --format short-verbose -- -short ./provider-mock/...
         '';
       };

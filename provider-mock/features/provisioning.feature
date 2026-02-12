@@ -11,7 +11,7 @@ Feature: Secret Provisioning
   Scenario: Provision a secret successfully
     When I create a ClientSecret:
       """yaml
-      apiVersion: mock.cso.ngl.cx/v1alpha1
+      apiVersion: mock.valet.ngl.cx/v1alpha1
       kind: ClientSecret
       metadata:
         name: test-secret
@@ -30,7 +30,7 @@ Feature: Secret Provisioning
   Scenario: Handle provider failure gracefully
     When I create a ClientSecret:
       """yaml
-      apiVersion: mock.cso.ngl.cx/v1alpha1
+      apiVersion: mock.valet.ngl.cx/v1alpha1
       kind: ClientSecret
       metadata:
         name: failing-secret
@@ -48,7 +48,7 @@ Feature: Secret Provisioning
   Scenario: Delete ClientSecret cleans up resources
     When I create a ClientSecret:
       """yaml
-      apiVersion: mock.cso.ngl.cx/v1alpha1
+      apiVersion: mock.valet.ngl.cx/v1alpha1
       kind: ClientSecret
       metadata:
         name: delete-test
@@ -67,7 +67,7 @@ Feature: Secret Provisioning
   Scenario: Validation failure does not retry
     When I create a ClientSecret:
       """yaml
-      apiVersion: mock.cso.ngl.cx/v1alpha1
+      apiVersion: mock.valet.ngl.cx/v1alpha1
       kind: ClientSecret
       metadata:
         name: validation-failure
@@ -82,7 +82,7 @@ Feature: Secret Provisioning
   Scenario: Provider tracks provisioned credentials
     When I create a ClientSecret:
       """yaml
-      apiVersion: mock.cso.ngl.cx/v1alpha1
+      apiVersion: mock.valet.ngl.cx/v1alpha1
       kind: ClientSecret
       metadata:
         name: tracking-test
@@ -98,7 +98,7 @@ Feature: Secret Provisioning
   Scenario: Expired credentials trigger rotation
     When I create a ClientSecret:
       """yaml
-      apiVersion: mock.cso.ngl.cx/v1alpha1
+      apiVersion: mock.valet.ngl.cx/v1alpha1
       kind: ClientSecret
       metadata:
         name: rotation-test
@@ -139,7 +139,7 @@ Feature: Secret Provisioning
   Scenario: DeleteKey failure keeps key in active list
     When I create a ClientSecret:
       """yaml
-      apiVersion: mock.cso.ngl.cx/v1alpha1
+      apiVersion: mock.valet.ngl.cx/v1alpha1
       kind: ClientSecret
       metadata:
         name: delete-key-failure

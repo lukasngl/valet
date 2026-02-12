@@ -10,8 +10,8 @@ import (
 
 	"github.com/cucumber/godog"
 	"github.com/google/uuid"
-	"github.com/lukasngl/client-secret-operator/framework"
-	"github.com/lukasngl/client-secret-operator/provider-mock/mock"
+	"github.com/lukasngl/valet/framework"
+	"github.com/lukasngl/valet/provider-mock/mock"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/yaml"

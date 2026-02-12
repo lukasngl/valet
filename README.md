@@ -1,6 +1,6 @@
-# Client Secret Operator (CSO)
+# Valet
 
-[![CI](https://github.com/lukasngl/client-secret-operator/actions/workflows/ci.yaml/badge.svg)](https://github.com/lukasngl/client-secret-operator/actions/workflows/ci.yaml)
+[![CI](https://github.com/lukasngl/valet/actions/workflows/ci.yaml/badge.svg)](https://github.com/lukasngl/valet/actions/workflows/ci.yaml)
 [![built with nix](https://img.shields.io/static/v1?logo=nixos&logoColor=white&label=&message=Built%20with%20Nix&color=41439a)](https://builtwithnix.org)
 
 > **Work in Progress** - This operator is under active development and not yet production-ready.
@@ -26,7 +26,7 @@ Each provider ships as an independent binary with its own CRD, Helm chart, and R
 5. On deletion, the operator cleans up external credentials
 
 ```yaml
-apiVersion: cso.ngl.cx/v1alpha1
+apiVersion: valet.ngl.cx/v1alpha1
 kind: AzureClientSecret
 metadata:
   name: my-app
@@ -83,8 +83,8 @@ Each provider defines its own CRD type implementing `framework.Object`, with typ
 ## Installation
 
 ```bash
-helm install cso-provider-azure oci://ghcr.io/lukasngl/client-secret-operator/charts/provider-azure \
-  --namespace cso-system \
+helm install valet-provider-azure oci://ghcr.io/lukasngl/valet/charts/provider-azure \
+  --namespace valet-system \
   --create-namespace
 ```
 
@@ -118,8 +118,8 @@ status:
 
 ## Related Work
 
-- [External Secrets Operator](https://external-secrets.io/) — syncs secrets from vaults (read-only); CSO provisions and rotates credentials (read-write)
-- [Crossplane](https://www.crossplane.io/) — general-purpose infrastructure provisioning; CSO is focused on client credential lifecycle
+- [External Secrets Operator](https://external-secrets.io/) — syncs secrets from vaults (read-only); Valet provisions and rotates credentials (read-write)
+- [Crossplane](https://www.crossplane.io/) — general-purpose infrastructure provisioning; Valet is focused on client credential lifecycle
 
 ## License
 

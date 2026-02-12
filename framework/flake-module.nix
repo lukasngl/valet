@@ -1,13 +1,17 @@
+{ ... }:
 {
   perSystem =
     {
+      config,
       pkgs,
       self',
-      withPackageEnv,
       ...
     }:
+    let
+      valet = config.valet.lib;
+    in
     {
-      checks.framework-test = withPackageEnv self'.packages.provider-mock {
+      checks.framework-test = valet.withPackageEnv self'.packages.provider-mock {
         name = "framework-test";
         extraBuildInputs = [ pkgs.gotestsum ];
         buildPhase = ''

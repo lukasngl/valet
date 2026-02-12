@@ -1,7 +1,7 @@
 go 1.25.0
 
 replace (
-	github.com/lukasngl/client-secret-operator/framework v0.0.0 => ./framework
+	github.com/lukasngl/valet/framework v0.0.0 => ./framework
 )
 
 use (

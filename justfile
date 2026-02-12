@@ -1,4 +1,4 @@
-registry := "ghcr.io/lukasngl/client-secret-operator"
+registry := "ghcr.io/lukasngl/valet"
 
 # Show available recipes
 default:

@@ -23,7 +23,7 @@ rules:
   - update
   - watch
 - apiGroups:
-  - mock.cso.ngl.cx
+  - mock.valet.ngl.cx
   resources:
   - clientsecrets
   verbs:
@@ -35,13 +35,13 @@ rules:
   - update
   - watch
 - apiGroups:
-  - mock.cso.ngl.cx
+  - mock.valet.ngl.cx
   resources:
   - clientsecrets/finalizers
   verbs:
   - update
 - apiGroups:
-  - mock.cso.ngl.cx
+  - mock.valet.ngl.cx
   resources:
   - clientsecrets/status
   verbs:

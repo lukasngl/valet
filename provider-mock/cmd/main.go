@@ -1,4 +1,4 @@
-// provider-mock runs a mock client-secret-operator provider for testing.
+// provider-mock runs a mock valet provider for testing.
 package main
 
 import (
@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/lukasngl/client-secret-operator/framework"
-	"github.com/lukasngl/client-secret-operator/provider-mock/mock"
+	"github.com/lukasngl/valet/framework"
+	"github.com/lukasngl/valet/provider-mock/mock"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -47,9 +47,9 @@ func main() {
 	}
 }
 
-// +kubebuilder:rbac:groups=mock.cso.ngl.cx,resources=clientsecrets,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=mock.cso.ngl.cx,resources=clientsecrets/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=mock.cso.ngl.cx,resources=clientsecrets/finalizers,verbs=update
+// +kubebuilder:rbac:groups=mock.valet.ngl.cx,resources=clientsecrets,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=mock.valet.ngl.cx,resources=clientsecrets/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=mock.valet.ngl.cx,resources=clientsecrets/finalizers,verbs=update
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;patch
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
 
@@ -81,7 +81,7 @@ func run() error {
 		WebhookServer:          webhook.NewServer(webhook.Options{TLSOpts: tlsOpts}),
 		HealthProbeBindAddress: *probeAddr,
 		LeaderElection:         *enableLeaderElection,
-		LeaderElectionID:       "provider-mock.cso.ngl.cx",
+		LeaderElectionID:       "provider-mock.valet.ngl.cx",
 	})
 	if err != nil {
 		return fmt.Errorf("creating manager: %w", err)

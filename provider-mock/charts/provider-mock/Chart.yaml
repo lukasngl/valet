@@ -1,6 +1,6 @@
 apiVersion: v2
 name: provider-mock
-description: Mock client-secret-operator provider for testing
+description: Mock valet provider for testing
 type: application
 version: 0.1.0
 appVersion: "0.1.0"

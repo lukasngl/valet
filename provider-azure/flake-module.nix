@@ -1,15 +1,11 @@
 { inputs, ... }:
 {
   perSystem =
-    {
-      pkgs,
-      mkGoModule,
-      withPackageEnv,
-      version,
-      ...
-    }:
+    { config, pkgs, ... }:
     let
-      provider-azure = mkGoModule {
+      valet = config.valet.lib;
+
+      provider-azure = valet.mkGoModule {
         pname = "provider-azure";
         subPackages = [ "provider-azure/cmd" ];
         postInstall = ''
@@ -30,7 +26,7 @@
 
       image = pkgs.dockerTools.streamLayeredImage {
         name = "provider-azure";
-        tag = version;
+        tag = valet.version;
         contents = [ pkgs.dockerTools.caCertificates ];
         config = {
           Entrypoint = [ "${provider-azure-compressed}/bin/provider-azure" ];
@@ -45,23 +41,12 @@
         provider-azure-image = image;
       };
 
-      checks.provider-azure-helm-lint =
-        pkgs.runCommand "provider-azure-helm-lint"
-          {
-            nativeBuildInputs = with pkgs; [
-              kubernetes-helm
-              kubeconform
-            ];
-          }
-          ''
-            chart=${inputs.self}/provider-azure/charts/provider-azure
-            helm lint "$chart"
-            helm template test "$chart" -f "$chart/values.kubeconform.yaml" \
-              | kubeconform -strict -summary
-            touch $out
-          '';
+      checks.provider-azure-helm = valet.packageChart {
+        name = "provider-azure";
+        src = "${inputs.self}/provider-azure/charts/provider-azure";
+      };
 
-      checks.provider-azure-lint = withPackageEnv provider-azure {
+      checks.provider-azure-lint = valet.withPackageEnv provider-azure {
         name = "provider-azure-lint";
         extraBuildInputs = [ pkgs.golangci-lint ];
         buildPhase = ''

@@ -1,4 +1,4 @@
-// Package framework provides the shared reconciler and types for client-secret-operator providers.
+// Package framework provides the shared reconciler and types for valet providers.
 package framework
 
 import (
@@ -10,7 +10,7 @@ import (
 
 const (
 	// Finalizer is applied to all managed CRDs to ensure key cleanup on deletion.
-	Finalizer = "cso.ngl.cx/finalizer"
+	Finalizer = "valet.ngl.cx/finalizer"
 
 	// RenewalThreshold is the maximum time before expiry to trigger renewal.
 	// For keys with shorter validity, a dynamic threshold of 10% of the

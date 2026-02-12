@@ -1,11 +1,11 @@
-// +groupName=mock.cso.ngl.cx
+// +groupName=mock.valet.ngl.cx
 package mock
 
 import (
 	"fmt"
 	"time"
 
-	"github.com/lukasngl/client-secret-operator/framework"
+	"github.com/lukasngl/valet/framework"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -13,7 +13,7 @@ import (
 
 var (
 	// GroupVersion is the API group and version for mock CRDs in tests.
-	GroupVersion = schema.GroupVersion{Group: "mock.cso.ngl.cx", Version: "v1alpha1"}
+	GroupVersion = schema.GroupVersion{Group: "mock.valet.ngl.cx", Version: "v1alpha1"}
 
 	// SchemeBuilder is used to register mock types with a runtime.Scheme.
 	SchemeBuilder = runtime.NewSchemeBuilder(addTypes)

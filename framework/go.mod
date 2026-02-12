@@ -1,4 +1,4 @@
-module github.com/lukasngl/client-secret-operator/framework
+module github.com/lukasngl/valet/framework
 
 go 1.25.0
 

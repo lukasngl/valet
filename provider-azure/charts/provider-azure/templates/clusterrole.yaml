@@ -24,7 +24,7 @@ rules:
   - update
   - watch
 - apiGroups:
-  - cso.ngl.cx
+  - valet.ngl.cx
   resources:
   - azureclientsecrets
   verbs:
@@ -36,13 +36,13 @@ rules:
   - update
   - watch
 - apiGroups:
-  - cso.ngl.cx
+  - valet.ngl.cx
   resources:
   - azureclientsecrets/finalizers
   verbs:
   - update
 - apiGroups:
-  - cso.ngl.cx
+  - valet.ngl.cx
   resources:
   - azureclientsecrets/status
   verbs:

@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/lukasngl/client-secret-operator/framework"
+	"github.com/lukasngl/valet/framework"
 )
 
 // Provider implements [framework.Provider] for [*ClientSecret].

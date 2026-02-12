@@ -1,4 +1,4 @@
-// provider-azure runs the Azure AD client-secret-operator provider.
+// provider-azure runs the Azure AD valet provider.
 package main
 
 import (
@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/lukasngl/client-secret-operator/framework"
-	"github.com/lukasngl/client-secret-operator/provider-azure/api/v1alpha1"
-	"github.com/lukasngl/client-secret-operator/provider-azure/internal"
+	"github.com/lukasngl/valet/framework"
+	"github.com/lukasngl/valet/provider-azure/api/v1alpha1"
+	"github.com/lukasngl/valet/provider-azure/internal"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -49,9 +49,9 @@ func main() {
 	}
 }
 
-// +kubebuilder:rbac:groups=cso.ngl.cx,resources=azureclientsecrets,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=cso.ngl.cx,resources=azureclientsecrets/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=cso.ngl.cx,resources=azureclientsecrets/finalizers,verbs=update
+// +kubebuilder:rbac:groups=valet.ngl.cx,resources=azureclientsecrets,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=valet.ngl.cx,resources=azureclientsecrets/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=valet.ngl.cx,resources=azureclientsecrets/finalizers,verbs=update
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;patch
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
 
@@ -83,7 +83,7 @@ func run() error {
 		WebhookServer:          webhook.NewServer(webhook.Options{TLSOpts: tlsOpts}),
 		HealthProbeBindAddress: *probeAddr,
 		LeaderElection:         *enableLeaderElection,
-		LeaderElectionID:       "provider-azure.cso.ngl.cx",
+		LeaderElectionID:       "provider-azure.valet.ngl.cx",
 	})
 	if err != nil {
 		return fmt.Errorf("creating manager: %w", err)
