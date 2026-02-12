@@ -49,10 +49,16 @@
       checks.provider-mock-helm-lint =
         pkgs.runCommand "provider-mock-helm-lint"
           {
-            nativeBuildInputs = [ pkgs.kubernetes-helm ];
+            nativeBuildInputs = with pkgs; [
+              kubernetes-helm
+              kubeconform
+            ];
           }
           ''
-            helm lint ${inputs.self}/provider-mock/charts/provider-mock
+            chart=${inputs.self}/provider-mock/charts/provider-mock
+            helm lint "$chart"
+            helm template test "$chart" -f "$chart/values.kubeconform.yaml" \
+              | kubeconform -strict -summary
             touch $out
           '';
 

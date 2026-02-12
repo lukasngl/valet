@@ -48,10 +48,16 @@
       checks.provider-azure-helm-lint =
         pkgs.runCommand "provider-azure-helm-lint"
           {
-            nativeBuildInputs = [ pkgs.kubernetes-helm ];
+            nativeBuildInputs = with pkgs; [
+              kubernetes-helm
+              kubeconform
+            ];
           }
           ''
-            helm lint ${inputs.self}/provider-azure/charts/provider-azure
+            chart=${inputs.self}/provider-azure/charts/provider-azure
+            helm lint "$chart"
+            helm template test "$chart" -f "$chart/values.kubeconform.yaml" \
+              | kubeconform -strict -summary
             touch $out
           '';
 

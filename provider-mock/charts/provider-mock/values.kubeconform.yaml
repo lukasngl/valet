@@ -1,0 +1,3 @@
+# Values that exercise all conditional template branches for kubeconform validation.
+leaderElection:
+  enabled: true

@@ -57,10 +57,10 @@ image-push *skopeo_args:
         docker-archive:/dev/stdin \
         docker://{{ registry }}:${tag}
 
-# Install CRDs into cluster
-install: gen
-    kubectl apply -f charts/secret-manager/crds/
+# Install CRDs into cluster for a provider
+install name: (_gen-chart name)
+    kubectl apply -f provider-{{ name }}/charts/provider-{{ name }}/crds/
 
-# Uninstall CRDs from cluster
-uninstall:
-    kubectl delete -f charts/secret-manager/crds/ --ignore-not-found
+# Uninstall CRDs from cluster for a provider
+uninstall name:
+    kubectl delete -f provider-{{ name }}/charts/provider-{{ name }}/crds/ --ignore-not-found

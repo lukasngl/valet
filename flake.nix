@@ -62,6 +62,34 @@
             kube-apiserver = "${pkgs.kubernetes}/bin/kube-apiserver";
           };
 
+          # Offline K8s JSON schemas for kubeconform (Nix sandbox has no network).
+          kubernetes-schemas = pkgs.stdenvNoCC.mkDerivation {
+            name = "kubernetes-json-schemas";
+            outputHashAlgo = "sha256";
+            outputHashMode = "recursive";
+            outputHash = lib.fakeHash;
+            nativeBuildInputs = [ pkgs.cacert ];
+            buildPhase =
+              let
+                base = "https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/master-standalone-strict";
+                schemas = [
+                  "deployment-apps-v1"
+                  "serviceaccount-v1"
+                  "clusterrole-rbac-v1"
+                  "clusterrolebinding-rbac-v1"
+                  "role-rbac-v1"
+                  "rolebinding-rbac-v1"
+                ];
+              in
+              ''
+                mkdir -p $out
+                ${lib.concatMapStringsSep "\n" (
+                  s: "${lib.getExe pkgs.curl} -sLo $out/${s}.json ${base}/${s}.json"
+                ) schemas}
+              '';
+            installPhase = "true";
+          };
+
           # Build a Go binary from the workspace using the shared vendor.
           mkGoModule =
             {
@@ -126,7 +154,7 @@
 
           devShells.default = pkgs.mkShell {
             hardeningDisable = [ "fortify" ];
-            name = "secret-manager";
+            name = "cso";
             buildInputs =
               (with pkgs; [
                 go
@@ -145,7 +173,7 @@
           };
 
           devShells.ci = pkgs.mkShell {
-            name = "secret-manager-ci";
+            name = "cso-ci";
             buildInputs = with pkgs; [
               go
               gotestsum

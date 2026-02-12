@@ -18,12 +18,22 @@
       "extra-files": [
         {
           "type": "yaml",
-          "path": "charts/secret-manager/Chart.yaml",
+          "path": "provider-azure/charts/provider-azure/Chart.yaml",
           "jsonpath": "$.version"
         },
         {
           "type": "yaml",
-          "path": "charts/secret-manager/Chart.yaml",
+          "path": "provider-azure/charts/provider-azure/Chart.yaml",
+          "jsonpath": "$.appVersion"
+        },
+        {
+          "type": "yaml",
+          "path": "provider-mock/charts/provider-mock/Chart.yaml",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "yaml",
+          "path": "provider-mock/charts/provider-mock/Chart.yaml",
           "jsonpath": "$.appVersion"
         },
         "version.txt"

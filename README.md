@@ -1,157 +1,125 @@
-# Secret Manager Operator
+# Client Secret Operator (CSO)
 
-[![CI](https://github.com/lukasngl/secret-manager/actions/workflows/ci.yaml/badge.svg)](https://github.com/lukasngl/secret-manager/actions/workflows/ci.yaml)
-[![codecov](https://codecov.io/github/lukasngl/secret-manager/graph/badge.svg?token=KFUG301E2O)](https://codecov.io/github/lukasngl/secret-manager)
+[![CI](https://github.com/lukasngl/client-secret-operator/actions/workflows/ci.yaml/badge.svg)](https://github.com/lukasngl/client-secret-operator/actions/workflows/ci.yaml)
 [![built with nix](https://img.shields.io/static/v1?logo=nixos&logoColor=white&label=&message=Built%20with%20Nix&color=41439a)](https://builtwithnix.org)
 
 > **Work in Progress** - This operator is under active development and not yet production-ready.
 
-A Kubernetes operator that automatically provisions and rotates secrets from external providers. Currently supports Azure AD client secrets with a plugin architecture for additional providers.
+A Kubernetes operator that automatically provisions and rotates client credentials from external identity providers. Built as a shared framework with per-provider modules.
+
+## Architecture
+
+```
+framework/           Shared reconciler, types, and provider interface
+provider-azure/      Azure Entra ID provider
+provider-mock/       Mock provider for testing
+```
+
+Each provider ships as an independent binary with its own CRD, Helm chart, and RBAC. The framework handles the full credential lifecycle (provisioning, rotation, cleanup, finalizers) — providers only implement three methods.
 
 ## How it Works
 
-1. Create a `ClientSecret` custom resource specifying the provider and configuration
+1. Create a provider-specific custom resource (e.g. `AzureClientSecret`)
 2. The operator provisions credentials from the external provider
 3. Credentials are written to a Kubernetes Secret (specified by `secretRef`)
 4. Credentials are automatically rotated before expiry
-5. On `ClientSecret` deletion, the operator cleans up external credentials
+5. On deletion, the operator cleans up external credentials
 
 ```yaml
-apiVersion: secret-manager.ngl.cx/v1alpha1
-kind: ClientSecret
+apiVersion: cso.ngl.cx/v1alpha1
+kind: AzureClientSecret
 metadata:
   name: my-app
 spec:
-  provider: azure
-  config:
-    objectId: "00000000-0000-0000-0000-000000000000"
-    validity: "2160h"  # 90 days
-    template:
-      AZURE_CLIENT_ID: "{{ .ClientID }}"
-      AZURE_CLIENT_SECRET: "{{ .ClientSecret }}"
-      AZURE_TENANT_ID: "your-tenant-id"  # hardcode static values
+  objectId: "00000000-0000-0000-0000-000000000000"
+  validity: "2160h"  # 90 days
+  template:
+    AZURE_CLIENT_ID: "{{ .ClientID }}"
+    AZURE_CLIENT_SECRET: "{{ .ClientSecret }}"
+    AZURE_TENANT_ID: "your-tenant-id"
   secretRef:
     name: my-app-credentials
 ```
 
 ## Security Model
 
-Access control is managed via Kubernetes RBAC with three permission levels:
+Access control is managed via Kubernetes RBAC:
 
 | Permission | What it allows | Security implication |
 |------------|----------------|----------------------|
-| `clientsecret-editor-role` | Create/edit/delete `ClientSecret` resources | Can request credentials for any Azure AD app the operator has access to |
-| `clientsecret-viewer-role` | Read `ClientSecret` resources | Can see which apps are configured, but not the actual secrets |
-| Read `Secret` | Read the output Secret | Can access the provisioned credentials |
+| Create/edit CRD | Request credentials for configured apps | Can provision secrets for any app the operator has access to |
+| Read CRD | See which apps are configured | No access to actual secrets |
+| Read Secret | Read the output Secret | Access to provisioned credentials |
 
 ### Privilege Escalation Risk
 
-Anyone with `clientsecret-editor-role` can request credentials for **any** Azure AD application that the operator's service principal has access to.
+Anyone who can create a provider CRD can request credentials for **any** application that the operator's service principal has access to.
 
 **Mitigations:**
+1. **Use `Application.ReadWrite.OwnedBy` permission** (recommended) — the operator can only manage applications it owns
+2. **Limit operator permissions** — only grant access to specific applications
+3. **Separate operators per trust boundary** if needed
 
-1. **Use `Application.ReadWrite.OwnedBy` permission** (recommended)
-   - The operator can only manage applications it owns
-   - Explicitly transfer app ownership to the operator's service principal
-
-2. **Limit operator's Azure permissions**
-   - Only grant the operator access to specific applications
-   - Use separate operators per trust boundary if needed
-
-## Supported Adapters
+## Providers
 
 | Provider | Status | Authentication |
 |----------|--------|----------------|
-| Azure AD | Working | DefaultAzureCredential (CLI, Env, Managed Identity, Workload Identity) |
+| Azure Entra ID | Working | DefaultAzureCredential (CLI, Env, Managed Identity, Workload Identity) |
 
 ## Adding Providers
 
-Custom providers can be added by implementing the `Provider` interface in `internal/adapter/` and registering via `init()`. Each provider defines its own config schema using struct tags:
+Implement the `framework.Provider[O]` interface:
 
 ```go
-// internal/adapter/myprovider/myprovider.go
-package myprovider
-
-import "github.com/lukasngl/secret-manager/internal/adapter"
-
-type Config struct {
-    ProjectID string `json:"projectId" jsonschema:"required"`
-    // ...
+type Provider[O Object] interface {
+    NewObject() O
+    Provision(ctx context.Context, obj O) (*Result, error)
+    DeleteKey(ctx context.Context, obj O, keyID string) error
 }
-
-var configSchema = adapter.MustSchema(Config{})
-
-type Provider struct{}
-
-func init() {
-    adapter.DefaultRegistry().Register(&Provider{})
-}
-
-func (p *Provider) Type() string                  { return "myprovider" }
-func (p *Provider) ConfigSchema() *adapter.Schema { return configSchema }
-// ... implement Validate, Provision, DeleteKey
 ```
 
-Run `just gen` to regenerate the CRD with the new provider's schema.
+Each provider defines its own CRD type implementing `framework.Object`, with typed spec fields — no JSON marshaling in the hot path. See `provider-mock/` for a complete example.
 
-## Running Locally
+## Installation
 
 ```bash
-# Using current kubeconfig context
-go run ./cmd/main.go
+helm install cso-provider-azure oci://ghcr.io/lukasngl/client-secret-operator/charts/provider-azure \
+  --namespace cso-system \
+  --create-namespace
+```
 
-# With specific context
-go run ./cmd/main.go --context my-cluster
+## Development
 
-# With specific kubeconfig
-go run ./cmd/main.go --kubeconfig ~/.kube/other-config
+```bash
+nix develop              # enter dev shell
+just gen                 # regenerate CRDs, RBAC, Helm chart
+just test                # run unit tests
+just lint                # run golangci-lint
+just e2e                 # run e2e tests
 ```
 
 ## Status
 
-The operator tracks status in the `ClientSecret` resource:
+The operator tracks status in the provider CRD:
 
 ```yaml
 status:
-  phase: Ready              # Ready, Pending, or Failed
+  phase: Ready
   currentKeyId: "abc-123"
   activeKeys:
     - keyId: "abc-123"
       createdAt: "2025-01-06T12:00:00Z"
       expiresAt: "2025-04-06T12:00:00Z"
-  failureCount: 0
   conditions:
     - type: Ready
       status: "True"
       reason: Provisioned
-      message: "Credentials provisioned successfully"
 ```
 
-View status with:
-```bash
-kubectl get clientsecrets   # or: kubectl get cs
-kubectl describe cs my-app
-```
+## Related Work
 
-## Installation
-
-```bash
-# Install CRD and operator via Helm
-helm install secret-manager ./charts/secret-manager \
-  --namespace secret-manager-system \
-  --create-namespace \
-  --set azure.workloadIdentity.enabled=true \
-  --set azure.workloadIdentity.clientId="<your-client-id>"
-```
-
-## Roadmap
-
-- [x] Unit and e2e tests
-- [x] CI/CD pipeline with automated releases
-- [ ] Prometheus metrics (provisioning latency, failure counts, key age)
-- [ ] Kubernetes Events for provisioning/rotation/errors
-- [ ] Additional providers (AWS Secrets Manager, GCP Secret Manager, HashiCorp Vault)
-- [ ] Namespace-scoped ObjectID allowlists for fine-grained access control
+- [External Secrets Operator](https://external-secrets.io/) — syncs secrets from vaults (read-only); CSO provisions and rotates credentials (read-write)
+- [Crossplane](https://www.crossplane.io/) — general-purpose infrastructure provisioning; CSO is focused on client credential lifecycle
 
 ## License
 
