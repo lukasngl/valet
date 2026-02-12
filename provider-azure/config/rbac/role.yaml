@@ -1,0 +1,50 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: provider-azure
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - cso.ngl.cx
+  resources:
+  - azureclientsecrets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - cso.ngl.cx
+  resources:
+  - azureclientsecrets/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - cso.ngl.cx
+  resources:
+  - azureclientsecrets/status
+  verbs:
+  - get
+  - patch
+  - update

@@ -1,0 +1,11 @@
+go 1.25.0
+
+replace (
+	github.com/lukasngl/client-secret-operator/framework v0.0.0 => ./framework
+)
+
+use (
+	./framework
+	./provider-azure
+	./provider-mock
+)

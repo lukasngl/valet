@@ -24,10 +24,22 @@ import (
 var version = "dev"
 
 var (
-	metricsAddr          = flag.String("metrics-bind-address", ":8080", "Metrics endpoint bind address.")
-	probeAddr            = flag.String("health-probe-bind-address", ":8081", "Health probe bind address.")
+	metricsAddr = flag.String(
+		"metrics-bind-address",
+		":8080",
+		"Metrics endpoint bind address.",
+	)
+	probeAddr = flag.String(
+		"health-probe-bind-address",
+		":8081",
+		"Health probe bind address.",
+	)
 	enableLeaderElection = flag.Bool("leader-elect", false, "Enable leader election.")
-	enableHTTP2          = flag.Bool("enable-http2", false, "Enable HTTP/2 for metrics and webhooks.")
+	enableHTTP2          = flag.Bool(
+		"enable-http2",
+		false,
+		"Enable HTTP/2 for metrics and webhooks.",
+	)
 )
 
 func main() {
@@ -36,6 +48,12 @@ func main() {
 		os.Exit(1)
 	}
 }
+
+// +kubebuilder:rbac:groups=cso.ngl.cx,resources=azureclientsecrets,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=cso.ngl.cx,resources=azureclientsecrets/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=cso.ngl.cx,resources=azureclientsecrets/finalizers,verbs=update
+// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;patch
+// +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
 
 func run() error {
 	opts := zap.Options{Development: true}

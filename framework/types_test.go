@@ -133,7 +133,11 @@ func TestClientSecretStatus_NeedsRenewal_GenerationChanged(t *testing.T) {
 	s := framework.ClientSecretStatus{
 		ObservedGeneration: 1,
 		ActiveKeys: framework.ActiveKeys{
-			{KeyID: "k", CreatedAt: metav1.NewTime(now), ExpiresAt: metav1.NewTime(now.Add(24 * time.Hour))},
+			{
+				KeyID:     "k",
+				CreatedAt: metav1.NewTime(now),
+				ExpiresAt: metav1.NewTime(now.Add(24 * time.Hour)),
+			},
 		},
 	}
 	if !s.NeedsRenewal(2, true) {
@@ -146,7 +150,11 @@ func TestClientSecretStatus_NeedsRenewal_SecretMissing(t *testing.T) {
 	s := framework.ClientSecretStatus{
 		ObservedGeneration: 1,
 		ActiveKeys: framework.ActiveKeys{
-			{KeyID: "k", CreatedAt: metav1.NewTime(now), ExpiresAt: metav1.NewTime(now.Add(24 * time.Hour))},
+			{
+				KeyID:     "k",
+				CreatedAt: metav1.NewTime(now),
+				ExpiresAt: metav1.NewTime(now.Add(24 * time.Hour)),
+			},
 		},
 	}
 	if !s.NeedsRenewal(1, false) {
@@ -159,7 +167,11 @@ func TestClientSecretStatus_NeedsRenewal_NotNeeded(t *testing.T) {
 	s := framework.ClientSecretStatus{
 		ObservedGeneration: 1,
 		ActiveKeys: framework.ActiveKeys{
-			{KeyID: "k", CreatedAt: metav1.NewTime(now), ExpiresAt: metav1.NewTime(now.Add(24 * time.Hour))},
+			{
+				KeyID:     "k",
+				CreatedAt: metav1.NewTime(now),
+				ExpiresAt: metav1.NewTime(now.Add(24 * time.Hour)),
+			},
 		},
 	}
 	if s.NeedsRenewal(1, true) {
@@ -171,7 +183,11 @@ func TestClientSecretStatus_RenewalDuration(t *testing.T) {
 	now := time.Now()
 	s := framework.ClientSecretStatus{
 		ActiveKeys: framework.ActiveKeys{
-			{KeyID: "k", CreatedAt: metav1.NewTime(now), ExpiresAt: metav1.NewTime(now.Add(24 * time.Hour))},
+			{
+				KeyID:     "k",
+				CreatedAt: metav1.NewTime(now),
+				ExpiresAt: metav1.NewTime(now.Add(24 * time.Hour)),
+			},
 		},
 	}
 	d := s.RenewalDuration()

@@ -128,12 +128,14 @@ jobs:
       - name: Get version tags
         id: version
         run: |
-          VERSION=${GITHUB_REF_NAME#v}
-          MAJOR=$(echo $VERSION | cut -d. -f1)
-          MINOR=$(echo $VERSION | cut -d. -f2)
-          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-          echo "major_minor=${MAJOR}.${MINOR}" >> "$GITHUB_OUTPUT"
-          echo "major=${MAJOR}" >> "$GITHUB_OUTPUT"
+          VERSION="${GITHUB_REF_NAME#v}"
+          MAJOR="$(echo "$VERSION" | cut -d. -f1)"
+          MINOR="$(echo "$VERSION" | cut -d. -f2)"
+          {
+            echo "version=${VERSION}"
+            echo "major_minor=${MAJOR}.${MINOR}"
+            echo "major=${MAJOR}"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Build and push image
         run: |

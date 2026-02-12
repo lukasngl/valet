@@ -51,7 +51,10 @@ func (p *Provider) NewObject() *v1alpha1.AzureClientSecret {
 }
 
 // Provision creates a new client secret for an Azure AD application.
-func (p *Provider) Provision(ctx context.Context, obj *v1alpha1.AzureClientSecret) (*framework.Result, error) {
+func (p *Provider) Provision(
+	ctx context.Context,
+	obj *v1alpha1.AzureClientSecret,
+) (*framework.Result, error) {
 	if err := p.initClient(); err != nil {
 		return nil, err
 	}
@@ -77,7 +80,12 @@ func (p *Provider) Provision(ctx context.Context, obj *v1alpha1.AzureClientSecre
 	defer p.requestMu.Unlock()
 
 	respBody, err := withRetry(ctx, func() ([]byte, error) {
-		return p.graphRequest(ctx, "POST", "/applications/"+obj.Spec.ObjectID+"/addPassword", reqBody)
+		return p.graphRequest(
+			ctx,
+			"POST",
+			"/applications/"+obj.Spec.ObjectID+"/addPassword",
+			reqBody,
+		)
 	})
 	if err != nil {
 		return nil, fmt.Errorf("adding password to application %s: %w", obj.Spec.ObjectID, err)
@@ -130,7 +138,11 @@ func (p *Provider) Provision(ctx context.Context, obj *v1alpha1.AzureClientSecre
 
 // DeleteKey removes a password credential from an Azure AD application.
 // Returns nil if the key has already been deleted (idempotent).
-func (p *Provider) DeleteKey(ctx context.Context, obj *v1alpha1.AzureClientSecret, keyID string) error {
+func (p *Provider) DeleteKey(
+	ctx context.Context,
+	obj *v1alpha1.AzureClientSecret,
+	keyID string,
+) error {
 	if keyID == "" {
 		return nil
 	}
@@ -145,16 +157,27 @@ func (p *Provider) DeleteKey(ctx context.Context, obj *v1alpha1.AzureClientSecre
 	defer p.requestMu.Unlock()
 
 	err := withRetryNoResult(ctx, func() error {
-		_, err := p.graphRequest(ctx, "POST", "/applications/"+obj.Spec.ObjectID+"/removePassword", reqBody)
+		_, err := p.graphRequest(
+			ctx,
+			"POST",
+			"/applications/"+obj.Spec.ObjectID+"/removePassword",
+			reqBody,
+		)
 		return err
 	})
 	if err != nil {
 		// Key already deleted at the provider — not an error.
 		if strings.Contains(err.Error(), "No password credential found") {
-			log.FromContext(ctx).Info("key already deleted", "keyId", keyID, "objectId", obj.Spec.ObjectID)
+			log.FromContext(ctx).
+				Info("key already deleted", "keyId", keyID, "objectId", obj.Spec.ObjectID)
 			return nil
 		}
-		return fmt.Errorf("removing password %s from application %s: %w", keyID, obj.Spec.ObjectID, err)
+		return fmt.Errorf(
+			"removing password %s from application %s: %w",
+			keyID,
+			obj.Spec.ObjectID,
+			err,
+		)
 	}
 
 	return nil
@@ -175,7 +198,11 @@ func (p *Provider) initClient() error {
 }
 
 // graphRequest makes an authenticated request to Microsoft Graph API.
-func (p *Provider) graphRequest(ctx context.Context, method, path string, body any) ([]byte, error) {
+func (p *Provider) graphRequest(
+	ctx context.Context,
+	method, path string,
+	body any,
+) ([]byte, error) {
 	token, err := p.cred.GetToken(ctx, policy.TokenRequestOptions{
 		Scopes: []string{"https://graph.microsoft.com/.default"},
 	})

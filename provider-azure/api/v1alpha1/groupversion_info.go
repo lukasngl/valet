@@ -1,4 +1,5 @@
 // Package v1alpha1 contains API schema definitions for cso.ngl.cx v1alpha1.
+// +groupName=cso.ngl.cx
 package v1alpha1
 
 import (

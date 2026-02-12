@@ -1,178 +1,160 @@
 {
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixpkgs-unstable";
-    flake-utils.url = "github:numtide/flake-utils";
+    flake-parts.url = "github:hercules-ci/flake-parts";
     treefmt-nix.url = "github:numtide/treefmt-nix";
     godogen = {
       url = "github:lukasngl/godogen";
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };
+
   outputs =
-    {
-      self,
-      nixpkgs,
-      flake-utils,
-      treefmt-nix,
-      godogen,
-    }:
-    flake-utils.lib.eachDefaultSystem (
-      system:
-      let
-        vendorHash = "sha256-zRuoxP0EKbUUdknrAlMUMVCJJBKmBtSTzgOfljJyW1g=";
-        pkgs = import nixpkgs {
-          inherit system;
-        };
-        self' = builtins.mapAttrs (name: value: value.${system} or value) self;
-        treefmt = treefmt-nix.lib.evalModule pkgs ./treefmt.nix;
-        version = builtins.replaceStrings [ "\n" ] [ "" ] (builtins.readFile ./version.txt);
-        envtest-binaries = pkgs.linkFarm "envtest-binaries" {
-          etcd = "${pkgs.etcd}/bin/etcd";
-          kube-apiserver = "${pkgs.kubernetes}/bin/kube-apiserver";
-        };
-        withPackageEnv =
-          {
-            name,
-            buildPhase,
-            extraBuildInputs ? [ ],
-          }:
-          self'.packages.secret-manager-uncompressed.overrideAttrs (old: {
-            inherit name buildPhase;
-            nativeBuildInputs = old.nativeBuildInputs ++ extraBuildInputs;
-            doCheck = false;
-            installPhase = "touch $out";
-          });
-      in
-      {
-        packages = rec {
-          default = secret-manager;
-          secret-manager-uncompressed = pkgs.buildGoModule {
-            pname = "secret-manager";
-            inherit vendorHash version;
-            src = self;
-            subPackages = [ "cmd" ];
-            tags = [ "netgo" ];
-            ldflags = [
-              "-s"
-              "-w"
-              "-X main.version=${version}"
-            ];
-            postInstall = ''
-              mv $out/bin/cmd $out/bin/secret-manager
-            '';
-            meta.mainProgram = "secret-manager";
+    inputs:
+    let
+      vendorHash = "sha256-gmhUUJBWAcMik8baCXdvtdPyvVthOU/XXo9msA0V2Rc=";
+    in
+    inputs.flake-parts.lib.mkFlake { inherit inputs; } {
+      systems = [
+        "x86_64-linux"
+        "aarch64-linux"
+      ];
+
+      imports = [
+        ./treefmt.nix
+        ./framework/flake-module.nix
+        ./provider-azure/flake-module.nix
+        ./provider-mock/flake-module.nix
+      ];
+
+      perSystem =
+        {
+          pkgs,
+          inputs',
+          lib,
+          ...
+        }:
+        let
+          version = builtins.replaceStrings [ "\n" ] [ "" ] (builtins.readFile ./version.txt);
+
+          # Single workspace-level vendor. All packages and checks share this.
+          workspaceVendor =
+            (pkgs.buildGoModule {
+              pname = "workspace";
+              inherit version vendorHash;
+              src = inputs.self;
+              overrideModAttrs = _: _: {
+                buildPhase = ''
+                  runHook preBuild
+                  export GIT_SSL_CAINFO=$NIX_SSL_CERT_FILE
+                  go work vendor
+                  mkdir -p vendor
+                  runHook postBuild
+                '';
+              };
+              subPackages = [ ];
+              buildPhase = "true";
+              installPhase = "mkdir -p $out";
+            }).goModules;
+
+          envtest-binaries = pkgs.linkFarm "envtest-binaries" {
+            etcd = "${pkgs.etcd}/bin/etcd";
+            kube-apiserver = "${pkgs.kubernetes}/bin/kube-apiserver";
           };
-          secret-manager = pkgs.stdenvNoCC.mkDerivation {
-            inherit (secret-manager-uncompressed) pname version meta;
-            dontUnpack = true;
-            nativeBuildInputs = [ pkgs.upx ];
-            buildPhase = ''
-              mkdir -p $out/bin
-              upx -o $out/bin/secret-manager ${secret-manager-uncompressed}/bin/secret-manager
-            '';
+
+          # Build a Go binary from the workspace using the shared vendor.
+          mkGoModule =
+            {
+              pname,
+              subPackages,
+              tags ? [ "netgo" ],
+              ldflags ? [
+                "-s"
+                "-w"
+                "-X main.version=${version}"
+              ],
+              ...
+            }@args:
+            pkgs.buildGoModule (
+              {
+                inherit
+                  pname
+                  version
+                  subPackages
+                  tags
+                  ldflags
+                  ;
+                src = inputs.self;
+                vendorHash = null;
+                preConfigure = ''
+                  cp -r --reflink=auto ${workspaceVendor} vendor
+                '';
+              }
+              // builtins.removeAttrs args [
+                "pname"
+                "subPackages"
+                "tags"
+                "ldflags"
+              ]
+            );
+
+          # Override a package to run a check instead of producing a binary.
+          withPackageEnv =
+            basePackage:
+            {
+              name,
+              buildPhase,
+              extraBuildInputs ? [ ],
+            }:
+            basePackage.overrideAttrs (old: {
+              inherit name buildPhase;
+              nativeBuildInputs = old.nativeBuildInputs ++ extraBuildInputs;
+              doCheck = false;
+              installPhase = "touch $out";
+            });
+        in
+        {
+          _module.args = {
+            inherit
+              mkGoModule
+              withPackageEnv
+              workspaceVendor
+              envtest-binaries
+              version
+              ;
           };
-          image = pkgs.dockerTools.streamLayeredImage {
+
+          devShells.default = pkgs.mkShell {
+            hardeningDisable = [ "fortify" ];
             name = "secret-manager";
-            contents = [
-              pkgs.dockerTools.caCertificates
-            ];
-            config = {
-              Entrypoint = [ "${secret-manager}/bin/secret-manager" ];
-              User = "65532:65532";
-              WorkingDir = "/";
-            };
+            buildInputs =
+              (with pkgs; [
+                go
+                just
+                operator-sdk
+                golangci-lint
+                kubernetes-controller-tools
+                kubernetes-helm
+                kustomize
+                skopeo
+              ])
+              ++ [
+                inputs'.godogen.packages.default
+              ];
+            KUBEBUILDER_ASSETS = "${envtest-binaries}";
           };
-        };
 
-        devShells.ci = pkgs.mkShell {
-          name = "secret-manager-ci";
-          buildInputs = with pkgs; [
-            go
-            gotestsum
-          ];
-          GOFLAGS = "-mod=vendor";
-          shellHook = ''
-            ln -sfn ${self'.packages.secret-manager-uncompressed.goModules} vendor
-          '';
-        };
-
-        devShells.default = pkgs.mkShell {
-          hardeningDisable = [ "fortify" ];
-          name = "secret-manager";
-          buildInputs =
-            (with pkgs; [
+          devShells.ci = pkgs.mkShell {
+            name = "secret-manager-ci";
+            buildInputs = with pkgs; [
               go
-              just
-              operator-sdk
-              golangci-lint
-              kubernetes-controller-tools
-              kubernetes-helm
-              kustomize
-              skopeo
-            ])
-            ++ [
-              godogen.packages.${system}.default
+              gotestsum
             ];
-          KUBEBUILDER_ASSETS = "${envtest-binaries}";
+            GOFLAGS = "-mod=vendor";
+            shellHook = ''
+              ln -sfn ${workspaceVendor} vendor
+            '';
+          };
         };
-
-        # run with `nix fmt`
-        formatter = treefmt.config.build.wrapper;
-
-        # run with `nix flake check`
-        checks = {
-
-          # run with `nix build .#checks.formatting`
-          formatting = treefmt.config.build.check self;
-
-          # run with `nix build .#checks.generated`
-          generated = withPackageEnv {
-            name = "check-generated";
-            extraBuildInputs = self'.devShells.default.buildInputs ++ [ pkgs.git ];
-            buildPhase = ''
-              export HOME=$(mktemp -d)
-
-              # Initialize git repo to track changes
-              git init && git add .
-
-              # Run generation
-              just gen
-
-              # Check for changes
-              if ! git diff --exit-code; then
-                echo "Generated files out of date. Run 'just gen' and commit."
-                exit 1
-              fi
-            '';
-          };
-
-          # run with `nix build .#checks.golangci-lint`
-          golangci-lint = withPackageEnv {
-            name = "golangci-lint-check";
-            extraBuildInputs = [ pkgs.golangci-lint ];
-            buildPhase = ''
-              export HOME=$(mktemp -d)
-              golangci-lint run --timeout 10m ./...
-            '';
-          };
-
-          # run with `nix build .#checks.test`
-          test = withPackageEnv {
-            name = "go-test";
-            extraBuildInputs = [ pkgs.gotestsum ];
-            buildPhase = ''
-              export HOME=$(mktemp -d)
-              gotestsum --format short-verbose -- -short ./...
-            '';
-          };
-
-          # run with `nix build .#checks.helm-lint`
-          helm-lint = pkgs.runCommand "helm-lint" { nativeBuildInputs = [ pkgs.kubernetes-helm ]; } ''
-            helm lint ${self}/charts/secret-manager
-            touch $out
-          '';
-
-        };
-      }
-    );
+    };
 }

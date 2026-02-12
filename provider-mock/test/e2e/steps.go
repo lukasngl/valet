@@ -61,7 +61,11 @@ func (s *Suite) after(ctx context.Context, _ *godog.Scenario, _ error) (context.
 
 	if s.k8sClient != nil && s.namespace != "" {
 		ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: s.namespace}}
-		_ = s.k8sClient.Delete(s.ctx, ns, client.PropagationPolicy(metav1.DeletePropagationBackground))
+		_ = s.k8sClient.Delete(
+			s.ctx,
+			ns,
+			client.PropagationPolicy(metav1.DeletePropagationBackground),
+		)
 	}
 
 	if s.cancel != nil {
@@ -131,8 +135,13 @@ func (s *Suite) iCreateAClientSecret(_ context.Context, doc *godog.DocString) er
 	return s.k8sClient.Create(s.ctx, &cs)
 }
 
+//
 //godogen:when ^I create a ClientSecret "([^"]*)" with:$
-func (s *Suite) iCreateAClientSecretNamed(_ context.Context, name string, doc *godog.DocString) error {
+func (s *Suite) iCreateAClientSecretNamed(
+	_ context.Context,
+	name string,
+	doc *godog.DocString,
+) error {
 	var cs mock.ClientSecret
 	if err := yaml.Unmarshal([]byte(doc.Content), &cs); err != nil {
 		return err
@@ -142,8 +151,13 @@ func (s *Suite) iCreateAClientSecretNamed(_ context.Context, name string, doc *g
 	return s.k8sClient.Create(s.ctx, &cs)
 }
 
+//
 //godogen:when ^I update the ClientSecret "([^"]*)" with:$
-func (s *Suite) iUpdateTheClientSecretWith(_ context.Context, name string, doc *godog.DocString) error {
+func (s *Suite) iUpdateTheClientSecretWith(
+	_ context.Context,
+	name string,
+	doc *godog.DocString,
+) error {
 	var existing mock.ClientSecret
 	if err := s.k8sClient.Get(s.ctx, client.ObjectKey{
 		Namespace: s.namespace,
@@ -166,8 +180,13 @@ func (s *Suite) theClientSecretShouldHavePhase(_ context.Context, name, phase st
 	return s.theClientSecretShouldHavePhaseWithin(nil, name, phase, 30)
 }
 
+//
 //godogen:then ^the ClientSecret "([^"]*)" should have phase "([^"]*)" within (\d+) seconds$
-func (s *Suite) theClientSecretShouldHavePhaseWithin(_ context.Context, name, phase string, seconds int) error {
+func (s *Suite) theClientSecretShouldHavePhaseWithin(
+	_ context.Context,
+	name, phase string,
+	seconds int,
+) error {
 	deadline := time.Now().Add(time.Duration(seconds) * time.Second)
 
 	var lastPhase string
@@ -200,8 +219,12 @@ func (s *Suite) aSecretShouldExist(_ context.Context, name string) error {
 	}, &secret)
 }
 
+//
 //godogen:then ^the Secret "([^"]*)" should contain key "([^"]*)" with value "([^"]*)"$
-func (s *Suite) theSecretShouldContainKeyWithValue(_ context.Context, name, key, value string) error {
+func (s *Suite) theSecretShouldContainKeyWithValue(
+	_ context.Context,
+	name, key, value string,
+) error {
 	var secret corev1.Secret
 	if err := s.k8sClient.Get(s.ctx, client.ObjectKey{
 		Namespace: s.namespace,
@@ -221,8 +244,13 @@ func (s *Suite) theSecretShouldContainKeyWithValue(_ context.Context, name, key,
 	return nil
 }
 
+//
 //godogen:then ^the Secret "([^"]*)" should contain key "([^"]*)" with value "([^"]*)" within (\d+) seconds$
-func (s *Suite) theSecretShouldContainKeyWithValueWithin(_ context.Context, name, key, value string, seconds int) error {
+func (s *Suite) theSecretShouldContainKeyWithValueWithin(
+	_ context.Context,
+	name, key, value string,
+	seconds int,
+) error {
 	deadline := time.Now().Add(time.Duration(seconds) * time.Second)
 
 	for time.Now().Before(deadline) {
@@ -241,7 +269,13 @@ func (s *Suite) theSecretShouldContainKeyWithValueWithin(_ context.Context, name
 		time.Sleep(200 * time.Millisecond)
 	}
 
-	return fmt.Errorf("key %q in secret %q did not reach value %q within %d seconds", key, name, value, seconds)
+	return fmt.Errorf(
+		"key %q in secret %q did not reach value %q within %d seconds",
+		key,
+		name,
+		value,
+		seconds,
+	)
 }
 
 //godogen:then ^the Secret "([^"]*)" should not exist$
@@ -265,8 +299,13 @@ func (s *Suite) iDeleteTheClientSecret(_ context.Context, name string) error {
 	return s.k8sClient.Delete(s.ctx, cs)
 }
 
+//
 //godogen:then ^the ClientSecret "([^"]*)" should not exist within (\d+) seconds$
-func (s *Suite) theClientSecretShouldNotExistWithin(_ context.Context, name string, seconds int) error {
+func (s *Suite) theClientSecretShouldNotExistWithin(
+	_ context.Context,
+	name string,
+	seconds int,
+) error {
 	deadline := time.Now().Add(time.Duration(seconds) * time.Second)
 
 	for time.Now().Before(deadline) {
@@ -284,8 +323,12 @@ func (s *Suite) theClientSecretShouldNotExistWithin(_ context.Context, name stri
 	return fmt.Errorf("ClientSecret %q still exists after %d seconds", name, seconds)
 }
 
+//
 //godogen:then ^the ClientSecret "([^"]*)" status should contain message "([^"]*)"$
-func (s *Suite) theClientSecretStatusShouldContainMessage(_ context.Context, name, message string) error {
+func (s *Suite) theClientSecretStatusShouldContainMessage(
+	_ context.Context,
+	name, message string,
+) error {
 	var cs mock.ClientSecret
 	if err := s.k8sClient.Get(s.ctx, client.ObjectKey{
 		Namespace: s.namespace,
@@ -306,8 +349,12 @@ func (s *Suite) theClientSecretStatusShouldContainMessage(_ context.Context, nam
 	return nil
 }
 
+//
 //godogen:then ^the mock provider should have received at least (\d+) provision calls$
-func (s *Suite) theMockProviderShouldHaveReceivedAtLeastProvisionCalls(_ context.Context, count int) error {
+func (s *Suite) theMockProviderShouldHaveReceivedAtLeastProvisionCalls(
+	_ context.Context,
+	count int,
+) error {
 	actual := s.provider.ProvisionCount
 	if actual < count {
 		return fmt.Errorf("expected at least %d provision calls, got %d", count, actual)
@@ -315,8 +362,12 @@ func (s *Suite) theMockProviderShouldHaveReceivedAtLeastProvisionCalls(_ context
 	return nil
 }
 
+//
 //godogen:then ^the mock provider should have received at least (\d+) provision calls within (\d+) seconds$
-func (s *Suite) theMockProviderShouldHaveReceivedAtLeastProvisionCallsWithin(_ context.Context, count, seconds int) error {
+func (s *Suite) theMockProviderShouldHaveReceivedAtLeastProvisionCallsWithin(
+	_ context.Context,
+	count, seconds int,
+) error {
 	deadline := time.Now().Add(time.Duration(seconds) * time.Second)
 
 	var actual int
@@ -328,11 +379,20 @@ func (s *Suite) theMockProviderShouldHaveReceivedAtLeastProvisionCallsWithin(_ c
 		time.Sleep(200 * time.Millisecond)
 	}
 
-	return fmt.Errorf("expected at least %d provision calls, got %d after %d seconds", count, actual, seconds)
+	return fmt.Errorf(
+		"expected at least %d provision calls, got %d after %d seconds",
+		count,
+		actual,
+		seconds,
+	)
 }
 
+//
 //godogen:then ^the mock provider should have received at least (\d+) delete key calls within (\d+) seconds$
-func (s *Suite) theMockProviderShouldHaveReceivedAtLeastDeleteKeyCallsWithin(_ context.Context, count, seconds int) error {
+func (s *Suite) theMockProviderShouldHaveReceivedAtLeastDeleteKeyCallsWithin(
+	_ context.Context,
+	count, seconds int,
+) error {
 	deadline := time.Now().Add(time.Duration(seconds) * time.Second)
 
 	var actual int
@@ -344,7 +404,12 @@ func (s *Suite) theMockProviderShouldHaveReceivedAtLeastDeleteKeyCallsWithin(_ c
 		time.Sleep(200 * time.Millisecond)
 	}
 
-	return fmt.Errorf("expected at least %d delete key calls, got %d after %d seconds", count, actual, seconds)
+	return fmt.Errorf(
+		"expected at least %d delete key calls, got %d after %d seconds",
+		count,
+		actual,
+		seconds,
+	)
 }
 
 //godogen:when ^I expire the credentials for ClientSecret "([^"]*)"$
@@ -365,8 +430,13 @@ func (s *Suite) iExpireTheCredentialsForClientSecret(_ context.Context, name str
 	return s.k8sClient.Status().Update(s.ctx, &cs)
 }
 
+//
 //godogen:then ^the ClientSecret "([^"]*)" should have (\d+) active keys$
-func (s *Suite) theClientSecretShouldHaveActiveKeys(_ context.Context, name string, count int) error {
+func (s *Suite) theClientSecretShouldHaveActiveKeys(
+	_ context.Context,
+	name string,
+	count int,
+) error {
 	var cs mock.ClientSecret
 	if err := s.k8sClient.Get(s.ctx, client.ObjectKey{
 		Namespace: s.namespace,
@@ -382,8 +452,13 @@ func (s *Suite) theClientSecretShouldHaveActiveKeys(_ context.Context, name stri
 	return nil
 }
 
+//
 //godogen:then ^the ClientSecret "([^"]*)" should have at least (\d+) active keys within (\d+) seconds$
-func (s *Suite) theClientSecretShouldHaveAtLeastActiveKeysWithin(_ context.Context, name string, count, seconds int) error {
+func (s *Suite) theClientSecretShouldHaveAtLeastActiveKeysWithin(
+	_ context.Context,
+	name string,
+	count, seconds int,
+) error {
 	deadline := time.Now().Add(time.Duration(seconds) * time.Second)
 
 	var lastCount int
@@ -404,5 +479,10 @@ func (s *Suite) theClientSecretShouldHaveAtLeastActiveKeysWithin(_ context.Conte
 		time.Sleep(200 * time.Millisecond)
 	}
 
-	return fmt.Errorf("ClientSecret %q has %d active keys, expected at least %d", name, lastCount, count)
+	return fmt.Errorf(
+		"ClientSecret %q has %d active keys, expected at least %d",
+		name,
+		lastCount,
+		count,
+	)
 }

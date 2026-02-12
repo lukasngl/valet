@@ -1,3 +1,4 @@
+// +groupName=mock.cso.ngl.cx
 package mock
 
 import (
@@ -30,6 +31,11 @@ func addTypes(scheme *runtime.Scheme) error {
 	metav1.AddToGroupVersion(scheme, GroupVersion)
 	return nil
 }
+
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="Phase",type="string",JSONPath=`.status.phase`
+// +kubebuilder:printcolumn:name="Age",type="date",JSONPath=`.metadata.creationTimestamp`
 
 // ClientSecret is a mock CRD that implements [framework.Object].
 // It is used for framework and e2e tests without depending on a real provider.
@@ -106,6 +112,8 @@ func (m *ClientSecret) DeepCopyObject() runtime.Object {
 	}
 	return &cp
 }
+
+// +kubebuilder:object:root=true
 
 // ClientSecretList contains a list of mock [ClientSecret] resources.
 type ClientSecretList struct {

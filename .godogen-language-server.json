@@ -1,6 +1,3 @@
 {
-  "stepPatterns": [
-    "test/e2e/**/*.go",
-    "features/**/*.feature"
-  ]
+  "stepPatterns": ["test/e2e/**/*.go", "features/**/*.feature"]
 }

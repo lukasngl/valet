@@ -12,7 +12,6 @@ import (
 	"github.com/lukasngl/client-secret-operator/provider-mock/mock"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
@@ -25,15 +24,6 @@ var godogOpts = godog.Options{
 	Concurrency: goruntime.GOMAXPROCS(0),
 	Strict:      true,
 }
-
-// testCfg and testScheme are shared across all scenarios. The envtest
-// environment is started once in TestMain and provides a real API server
-// with the mock CRD already installed.
-var (
-	testCfg    *rest.Config
-	testScheme *runtime.Scheme
-	testEnv    *envtest.Environment
-)
 
 func init() {
 	godog.BindFlags("godog.", flag.CommandLine, &godogOpts)

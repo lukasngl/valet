@@ -1,0 +1,12 @@
+apiVersion: v2
+name: provider-azure
+description: Kubernetes operator for rotating Azure AD application client secrets
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - secrets
+  - azure
+  - operator
+maintainers:
+  - name: lukasngl
