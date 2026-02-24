@@ -1,0 +1,71 @@
+replicaCount: 1
+
+image:
+  repository: ghcr.io/lukasngl/valet/provider-azure
+  pullPolicy: IfNotPresent
+  tag: ""  # Defaults to appVersion
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 128Mi
+  requests:
+    cpu: 10m
+    memory: 64Mi
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+leaderElection:
+  enabled: true
+
+# Azure authentication
+# Option 1: Workload Identity (recommended for AKS)
+# Option 2: Environment variables
+azure:
+  workloadIdentity:
+    enabled: false
+    clientId: ""
+
+  credentials:
+    enabled: false
+    tenantId: ""
+    clientId: ""
+    clientSecret: ""
+    existingSecret: ""
+    existingSecretKeys:
+      tenantId: AZURE_TENANT_ID
+      clientId: AZURE_CLIENT_ID
+      clientSecret: AZURE_CLIENT_SECRET
+
+metrics:
+  enabled: true
+  port: 8080
+
+healthProbe:
+  port: 8081

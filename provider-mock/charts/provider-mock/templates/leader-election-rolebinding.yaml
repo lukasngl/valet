@@ -1,0 +1,17 @@
+{{- if .Values.leaderElection.enabled }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "provider-mock.fullname" . }}-leader-election
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "provider-mock.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "provider-mock.fullname" . }}-leader-election
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "provider-mock.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}

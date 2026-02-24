@@ -1,33 +1,35 @@
-default: build
-
-registry := "ghcr.io/lukasngl/secret-manager"
+registry := "ghcr.io/lukasngl/valet"
 
 # Show available recipes
-help:
+default:
     @just --list
 
 # Run all code generation
-gen: generate-manifests generate-helm-chart
+gen: (_gen-chart "azure") (_gen-chart "mock")
 
-# Generate Go code and base manifests
-generate-manifests:
-    controller-gen object:headerFile="hack/boilerplate.go.txt" paths="./..."
-    controller-gen crd paths="./..." output:crd:artifacts:config=config/crd
-    controller-gen rbac:roleName=secret-manager paths="./..." output:rbac:artifacts:config=config/rbac
+# Generate CRD, RBAC, and update Helm chart for a provider
+_gen-chart name:
+    controller-gen crd paths="./provider-{{ name }}/..." output:crd:artifacts:config=provider-{{ name }}/config/crd
+    controller-gen rbac:roleName=provider-{{ name }} paths="./provider-{{ name }}/..." output:rbac:artifacts:config=provider-{{ name }}/config/rbac
+    cp provider-{{ name }}/config/crd/*.yaml provider-{{ name }}/charts/provider-{{ name }}/crds/
+    @printf '%s\n' \
+      'apiVersion: rbac.authorization.k8s.io/v1' \
+      'kind: ClusterRole' \
+      'metadata:' \
+      '  name: {{{{ include "provider-{{ name }}.fullname" . }}' \
+      '  labels:' \
+      '    {{{{- include "provider-{{ name }}.labels" . | nindent 4 }}' \
+      > provider-{{ name }}/charts/provider-{{ name }}/templates/clusterrole.yaml
+    @sed -n '/^rules:/,$p' provider-{{ name }}/config/rbac/role.yaml \
+      >> provider-{{ name }}/charts/provider-{{ name }}/templates/clusterrole.yaml
 
-# Generate helm chart from manifests
-generate-helm-chart:
-    go run ./cmd/gen-crd > charts/secret-manager/crds/clientsecrets.yaml
-    @printf '%s\n' 'apiVersion: rbac.authorization.k8s.io/v1' 'kind: ClusterRole' 'metadata:' '  name: {{{{ include "secret-manager.fullname" . }}' '  labels:' '    {{{{- include "secret-manager.labels" . | nindent 4 }}' > charts/secret-manager/templates/clusterrole.yaml
-    @sed -n '/^rules:/,$p' config/rbac/role.yaml >> charts/secret-manager/templates/clusterrole.yaml
-
-# Run go fmt
+# Run treefmt
 fmt:
-    go fmt ./...
+    nix fmt
 
-# Run go vet
-vet:
-    go vet ./...
+# Run go mod tidy
+tidy:
+    find . -name go.mod -exec sh -c 'cd $(dirname {}); go mod tidy ' \;
 
 # Run unit tests
 test:
@@ -40,14 +42,6 @@ e2e:
 # Run golangci-lint
 lint *args:
     golangci-lint run {{ args }}
-
-# Build manager binary
-build: gen fmt vet
-    go build -o bin/manager cmd/main.go
-
-# Run controller locally
-run: gen fmt vet
-    go run ./cmd/main.go
 
 # Build container image with nix
 image-build:
@@ -63,10 +57,10 @@ image-push *skopeo_args:
         docker-archive:/dev/stdin \
         docker://{{ registry }}:${tag}
 
-# Install CRDs into cluster
-install: gen
-    kubectl apply -f charts/secret-manager/crds/
+# Install CRDs into cluster for a provider
+install name: (_gen-chart name)
+    kubectl apply -f provider-{{ name }}/charts/provider-{{ name }}/crds/
 
-# Uninstall CRDs from cluster
-uninstall:
-    kubectl delete -f charts/secret-manager/crds/ --ignore-not-found
+# Uninstall CRDs from cluster for a provider
+uninstall name:
+    kubectl delete -f provider-{{ name }}/charts/provider-{{ name }}/crds/ --ignore-not-found

@@ -14,7 +14,7 @@ permissions:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  IMAGE_BASE: ${{ github.repository }}
 
 jobs:
   nix-matrix:
@@ -49,35 +49,52 @@ jobs:
         run: nix build .#checks.x86_64-linux.${{ matrix.check }} -L
 
   test:
+    needs: check
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: nix develop .#ci -c bash -e {0}
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-          cache: true
+      - uses: DeterminateSystems/nix-installer-action@main
 
-      - name: Run tests
+      - uses: DeterminateSystems/magic-nix-cache-action@main
+
+      - name: Cache devShell
+        run: true
+
+      - name: Collect sandbox coverage
+        shell: bash
+        run: |
+          for check in framework-test provider-mock-test provider-azure-test; do
+            out=$(nix build .#checks.x86_64-linux.$check --no-link --print-out-paths)
+            cp "$out/coverage.txt" "coverage-$check.txt"
+          done
+
+      - name: Run Azure e2e tests
         env:
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           TEST_AZURE_OWNED_APP_OBJECT_ID: ${{ secrets.TEST_AZURE_OWNED_APP_OBJECT_ID }}
           TEST_AZURE_OTHER_APP_OBJECT_ID: ${{ secrets.TEST_AZURE_OTHER_APP_OBJECT_ID }}
-        run: go test ./... -v -timeout 10m -coverprofile=coverage.txt -coverpkg=./internal/...
+        run: gotestsum --format github-actions -- -run TestE2E -timeout 10m -coverprofile=coverage-azure.txt ./provider-azure/...
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: coverage.txt
+          files: coverage-framework-test.txt,coverage-provider-mock-test.txt,coverage-provider-azure-test.txt,coverage-azure.txt
           fail_ci_if_error: true
 
   push-nightly:
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/ci-test-release'
     needs: [check, test]
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        provider: [azure]
     steps:
       - uses: actions/checkout@v4
 
@@ -97,22 +114,27 @@ jobs:
 
       - name: Build and push image
         run: |
-          nix develop -c just image-push \
+          image_script=$(nix build .#provider-${{ matrix.provider }}-image --no-link --print-out-paths)
+          $image_script | nix develop -c skopeo copy \
             --dest-creds=token:${{ secrets.GITHUB_TOKEN }} \
-            --additional-tag=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.tag }}
+            docker-archive:/dev/stdin \
+            docker://${{ env.REGISTRY }}/${{ env.IMAGE_BASE }}/provider-${{ matrix.provider }}:${{ steps.version.outputs.tag }}
 
       - name: Package and push Helm chart
         run: |
           echo "${{ github.token }}" | nix develop -c helm registry login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin
-          nix develop -c helm package charts/secret-manager \
+          nix develop -c helm package provider-${{ matrix.provider }}/charts/provider-${{ matrix.provider }} \
             --version ${{ steps.version.outputs.tag }} \
             --app-version ${{ steps.version.outputs.tag }}
-          nix develop -c helm push secret-manager-*.tgz oci://${{ env.REGISTRY }}/${{ github.repository_owner }}/charts
+          nix develop -c helm push provider-${{ matrix.provider }}-*.tgz oci://${{ env.REGISTRY }}/${{ github.repository_owner }}/charts
 
   push-release:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [check, test]
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        provider: [azure]
     steps:
       - uses: actions/checkout@v4
 
@@ -123,25 +145,29 @@ jobs:
       - name: Get version tags
         id: version
         run: |
-          VERSION=${GITHUB_REF_NAME#v}
-          MAJOR=$(echo $VERSION | cut -d. -f1)
-          MINOR=$(echo $VERSION | cut -d. -f2)
-          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-          echo "major_minor=${MAJOR}.${MINOR}" >> "$GITHUB_OUTPUT"
-          echo "major=${MAJOR}" >> "$GITHUB_OUTPUT"
+          VERSION="${GITHUB_REF_NAME#v}"
+          MAJOR="$(echo "$VERSION" | cut -d. -f1)"
+          MINOR="$(echo "$VERSION" | cut -d. -f2)"
+          {
+            echo "version=${VERSION}"
+            echo "major_minor=${MAJOR}.${MINOR}"
+            echo "major=${MAJOR}"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Build and push image
         run: |
-          nix develop -c just image-push \
+          image_script=$(nix build .#provider-${{ matrix.provider }}-image --no-link --print-out-paths)
+          $image_script | nix develop -c skopeo copy \
             --dest-creds=token:${{ secrets.GITHUB_TOKEN }} \
-            --additional-tag=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }} \
-            --additional-tag=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.major_minor }} \
-            --additional-tag=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.major }}
+            docker-archive:/dev/stdin \
+            docker://${{ env.REGISTRY }}/${{ env.IMAGE_BASE }}/provider-${{ matrix.provider }}:${{ steps.version.outputs.version }} \
+            --additional-tag=${{ env.REGISTRY }}/${{ env.IMAGE_BASE }}/provider-${{ matrix.provider }}:${{ steps.version.outputs.major_minor }} \
+            --additional-tag=${{ env.REGISTRY }}/${{ env.IMAGE_BASE }}/provider-${{ matrix.provider }}:${{ steps.version.outputs.major }}
 
       - name: Package and push Helm chart
         run: |
           echo "${{ github.token }}" | nix develop -c helm registry login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin
-          nix develop -c helm package charts/secret-manager \
+          nix develop -c helm package provider-${{ matrix.provider }}/charts/provider-${{ matrix.provider }} \
             --version ${{ steps.version.outputs.version }} \
             --app-version ${{ steps.version.outputs.version }}
-          nix develop -c helm push secret-manager-*.tgz oci://${{ env.REGISTRY }}/${{ github.repository_owner }}/charts
+          nix develop -c helm push provider-${{ matrix.provider }}-*.tgz oci://${{ env.REGISTRY }}/${{ github.repository_owner }}/charts

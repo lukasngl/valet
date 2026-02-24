@@ -1,0 +1,12 @@
+# Values that exercise all conditional template branches for kubeconform validation.
+leaderElection:
+  enabled: true
+
+azure:
+  workloadIdentity:
+    enabled: true
+    clientId: "00000000-0000-0000-0000-000000000000"
+
+  credentials:
+    enabled: true
+    existingSecret: "azure-credentials"

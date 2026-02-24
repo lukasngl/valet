@@ -1,0 +1,50 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: provider-mock
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - mock.valet.ngl.cx
+  resources:
+  - clientsecrets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - mock.valet.ngl.cx
+  resources:
+  - clientsecrets/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - mock.valet.ngl.cx
+  resources:
+  - clientsecrets/status
+  verbs:
+  - get
+  - patch
+  - update

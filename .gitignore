@@ -1,4 +1,8 @@
 .direnv
+result*
 .envrc
 bin/
 .env
+vendor
+secret-manager-*
+test-clientsecret.yaml
