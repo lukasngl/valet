@@ -49,9 +49,7 @@ func (s *Suite) theMockProviderShouldHaveReceivedAtLeastProvisionCallsWithin(
 
 	return fmt.Errorf(
 		"expected at least %d provision calls, got %d after %d seconds",
-		count,
-		actual,
-		seconds,
+		count, actual, seconds,
 	)
 }
 
@@ -73,8 +71,6 @@ func (s *Suite) theMockProviderShouldHaveReceivedAtLeastDeleteKeyCallsWithin(
 
 	return fmt.Errorf(
 		"expected at least %d delete key calls, got %d after %d seconds",
-		count,
-		actual,
-		seconds,
+		count, actual, seconds,
 	)
 }

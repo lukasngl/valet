@@ -64,8 +64,3 @@ func (p *Provider) DeleteKey(_ context.Context, obj *v1alpha1.ClientSecret, keyI
 	return nil
 }
 
-// Reset clears all recorded calls.
-func (p *Provider) Reset() {
-	p.ProvisionCount = 0
-	p.DeleteKeyCalls = nil
-}
