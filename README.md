@@ -1,5 +1,6 @@
 # Valet
 
+[![codecov](https://codecov.io/github/lukasngl/valet/graph/badge.svg?token=KFUG301E2O)](https://codecov.io/github/lukasngl/valet)
 [![CI](https://github.com/lukasngl/valet/actions/workflows/ci.yaml/badge.svg)](https://github.com/lukasngl/valet/actions/workflows/ci.yaml)
 [![built with nix](https://img.shields.io/static/v1?logo=nixos&logoColor=white&label=&message=Built%20with%20Nix&color=41439a)](https://builtwithnix.org)
 

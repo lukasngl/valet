@@ -46,9 +46,20 @@ jobs:
       - uses: DeterminateSystems/magic-nix-cache-action@main
 
       - name: Run ${{ matrix.check }}
-        run: nix build .#checks.x86_64-linux.${{ matrix.check }} -L
+        run: |
+          out=$(nix build .#checks.x86_64-linux.${{ matrix.check }} --no-link --print-out-paths -L)
+          if [ -f "$out/coverage.txt" ]; then
+            cp "$out/coverage.txt" "coverage-${{ matrix.check }}.txt"
+          fi
 
-  test:
+      - name: Upload coverage
+        if: hashFiles('coverage-*.txt') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ matrix.check }}
+          path: "coverage-${{ matrix.check }}.txt"
+
+  e2e-test:
     needs: check
     runs-on: ubuntu-latest
     defaults:
@@ -64,14 +75,6 @@ jobs:
       - name: Cache devShell
         run: true
 
-      - name: Collect sandbox coverage
-        shell: bash
-        run: |
-          for check in framework-test provider-mock-test provider-azure-test; do
-            out=$(nix build .#checks.x86_64-linux.$check --no-link --print-out-paths)
-            cp "$out/coverage.txt" "coverage-$check.txt"
-          done
-
       - name: Run Azure e2e tests
         env:
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
@@ -79,18 +82,37 @@ jobs:
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           TEST_AZURE_OWNED_APP_OBJECT_ID: ${{ secrets.TEST_AZURE_OWNED_APP_OBJECT_ID }}
           TEST_AZURE_OTHER_APP_OBJECT_ID: ${{ secrets.TEST_AZURE_OTHER_APP_OBJECT_ID }}
-        run: gotestsum --format github-actions -- -run TestE2E -timeout 10m -coverprofile=coverage-azure.txt ./provider-azure/...
+        run: gotestsum --format github-actions -- -run TestE2E -timeout 10m -coverprofile=coverage-azure-e2e.txt ./provider-azure/...
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-azure-e2e
+          path: coverage-azure-e2e.txt
+
+  coverage:
+    needs: [check, e2e-test]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download coverage artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: coverage-*
+          merge-multiple: true
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: coverage-framework-test.txt,coverage-provider-mock-test.txt,coverage-provider-azure-test.txt,coverage-azure.txt
           fail_ci_if_error: true
 
   push-nightly:
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/ci-test-release'
-    needs: [check, test]
+    needs: [check, e2e-test]
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -130,7 +152,7 @@ jobs:
 
   push-release:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [check, test]
+    needs: [check, e2e-test]
     runs-on: ubuntu-latest
     strategy:
       matrix:
