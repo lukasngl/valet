@@ -22,7 +22,6 @@ func InitializeSuite[T1 Object](sc *godog.ScenarioContext, r1 *Suite[T1]) {
 	sc.When(`^I update the ClientSecret "([^"]*)" with:$`, r1.iUpdateTheClientSecretWith)
 	sc.When(`^I delete the ClientSecret "([^"]*)"$`, r1.iDeleteTheClientSecret)
 	sc.When(`^I expire the credentials for ClientSecret "([^"]*)"$`, r1.iExpireTheCredentialsForClientSecret)
-	sc.Then(`^the ClientSecret "([^"]*)" should have phase "([^"]*)"$`, r1.theClientSecretShouldHavePhase)
 	sc.Then(`^the ClientSecret "([^"]*)" should have phase "([^"]*)" within (\d+) seconds$`, r1.theClientSecretShouldHavePhaseWithin)
 	sc.Then(`^the ClientSecret "([^"]*)" should not exist within (\d+) seconds$`, r1.theClientSecretShouldNotExistWithin)
 	sc.Then(`^the ClientSecret "([^"]*)" status should contain message "([^"]*)"$`, r1.theClientSecretStatusShouldContainMessage)
@@ -34,7 +33,6 @@ func InitializeSuite[T1 Object](sc *godog.ScenarioContext, r1 *Suite[T1]) {
 	sc.Then(`^the Secret "([^"]*)" should contain key "([^"]*)" with value "([^"]*)"$`, r1.theSecretShouldContainKeyWithValue)
 	sc.Then(`^the Secret "([^"]*)" should contain key "([^"]*)" with value "([^"]*)" within (\d+) seconds$`, r1.theSecretShouldContainKeyWithValueWithin)
 	sc.Then(`^the Secret "([^"]*)" should be owned by ClientSecret "([^"]*)"$`, r1.theSecretShouldBeOwnedByClientSecret)
-	sc.Then(`^the operation should have failed$`, r1.theOperationShouldHaveFailed)
 	sc.Then(`^the operation should have failed with "([^"]*)"$`, r1.theOperationShouldHaveFailedWith)
 	sc.Then(`^the Secret "([^"]*)" should not exist$`, r1.theSecretShouldNotExist)
 }

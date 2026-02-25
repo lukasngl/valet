@@ -261,11 +261,6 @@ func (s *Suite[O]) iExpireTheCredentialsForClientSecret(_ context.Context, name 
 
 // --- Then steps: ClientSecret assertions ---
 
-//godogen:then ^the ClientSecret "([^"]*)" should have phase "([^"]*)"$
-func (s *Suite[O]) theClientSecretShouldHavePhase(_ context.Context, name, phase string) error {
-	return s.theClientSecretShouldHavePhaseWithin(context.TODO(), name, phase, 30)
-}
-
 //godogen:then ^the ClientSecret "([^"]*)" should have phase "([^"]*)" within (\d+) seconds$
 func (s *Suite[O]) theClientSecretShouldHavePhaseWithin(
 	_ context.Context,
@@ -327,12 +322,8 @@ func (s *Suite[O]) theClientSecretStatusShouldContainMessage(
 		return fmt.Errorf("ClientSecret %q has no failure message", name)
 	}
 	if !strings.Contains(status.LastFailureMessage, message) {
-		return fmt.Errorf(
-			"ClientSecret %q failure message %q does not contain %q",
-			name,
-			status.LastFailureMessage,
-			message,
-		)
+		return fmt.Errorf("ClientSecret %q failure message %q does not contain %q",
+			name, status.LastFailureMessage, message)
 	}
 	return nil
 }
@@ -378,12 +369,8 @@ func (s *Suite[O]) theClientSecretShouldHaveAtLeastActiveKeysWithin(
 		}
 		time.Sleep(200 * time.Millisecond)
 	}
-	return fmt.Errorf(
-		"ClientSecret %q has %d active keys, expected at least %d",
-		name,
-		lastCount,
-		count,
-	)
+	return fmt.Errorf("ClientSecret %q has %d active keys, expected at least %d",
+		name, lastCount, count)
 }
 
 // --- Then steps: Secret assertions ---
@@ -434,10 +421,7 @@ func (s *Suite[O]) theSecretShouldContainKeyWithin(
 		}
 		time.Sleep(200 * time.Millisecond)
 	}
-	return fmt.Errorf(
-		"key %q in secret %q not found or empty after %d seconds",
-		key, name, seconds,
-	)
+	return fmt.Errorf("key %q in secret %q not found or empty after %d seconds", key, name, seconds)
 }
 
 //godogen:then ^the Secret "([^"]*)" should contain key "([^"]*)" with value "([^"]*)"$
@@ -481,13 +465,8 @@ func (s *Suite[O]) theSecretShouldContainKeyWithValueWithin(
 		}
 		time.Sleep(200 * time.Millisecond)
 	}
-	return fmt.Errorf(
-		"key %q in secret %q did not reach value %q within %d seconds",
-		key,
-		name,
-		value,
-		seconds,
-	)
+	return fmt.Errorf("key %q in secret %q did not reach value %q within %d seconds",
+		key, name, value, seconds)
 }
 
 //godogen:then ^the Secret "([^"]*)" should be owned by ClientSecret "([^"]*)"$
@@ -506,20 +485,7 @@ func (s *Suite[O]) theSecretShouldBeOwnedByClientSecret(
 			return nil
 		}
 	}
-	return fmt.Errorf(
-		"secret %q has no controller ownerReference to %q",
-		secretName,
-		ownerName,
-	)
-}
-
-//godogen:then ^the operation should have failed$
-func (s *Suite[O]) theOperationShouldHaveFailed(_ context.Context) error {
-	if s.lastErr == nil {
-		return fmt.Errorf("expected operation to fail, but it succeeded")
-	}
-	s.lastErr = nil
-	return nil
+	return fmt.Errorf("secret %q has no controller ownerReference to %q", secretName, ownerName)
 }
 
 //godogen:then ^the operation should have failed with "([^"]*)"$

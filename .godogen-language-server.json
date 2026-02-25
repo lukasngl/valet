@@ -1,3 +1,7 @@
 {
-  "stepPatterns": ["test/e2e/**/*.go", "features/**/*.feature"]
+  "stepPatterns": [
+    "framework/bddtest/**/*.go",
+    "provider-*/test/e2e/**/*.go",
+    "provider-*/features/**/*.feature"
+  ]
 }
