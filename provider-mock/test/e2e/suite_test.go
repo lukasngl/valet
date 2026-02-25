@@ -76,7 +76,7 @@ func TestFeatures(t *testing.T) {
 		ScenarioInitializer: func(sc *godog.ScenarioContext) {
 			p := mock.NewProvider()
 			shared := bddtest.New[*v1alpha1.ClientSecret](&testEnvCfg, p, p.NewObject)
-			bddtest.RegisterSteps(sc, shared)
+			bddtest.InitializeSuite(sc, shared)
 
 			InitializeSteps(sc, &Suite{Suite: shared, provider: p})
 		},

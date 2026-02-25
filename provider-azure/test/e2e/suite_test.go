@@ -84,7 +84,7 @@ func TestMock(t *testing.T) {
 				internal.WithBaseURL("http://graph.mock"),
 			)
 			shared := bddtest.New[*v1alpha1.AzureClientSecret](&testEnvCfg, p, p.NewObject)
-			bddtest.RegisterSteps(sc, shared)
+			bddtest.InitializeSuite(sc, shared)
 		},
 		Options: &opts,
 	}.Run()
@@ -111,7 +111,7 @@ func TestE2E(t *testing.T) {
 		ScenarioInitializer: func(sc *godog.ScenarioContext) {
 			p := internal.New()
 			shared := bddtest.New[*v1alpha1.AzureClientSecret](&testEnvCfg, p, p.NewObject)
-			bddtest.RegisterSteps(sc, shared)
+			bddtest.InitializeSuite(sc, shared)
 		},
 		Options: &opts,
 	}.Run()

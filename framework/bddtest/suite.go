@@ -6,6 +6,8 @@
 // embed the suite and register their own steps via godogen on top.
 package bddtest
 
+//go:generate godogen
+
 import (
 	"context"
 	"fmt"
@@ -28,6 +30,10 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 )
 
+// Object is a type alias for [framework.Object] so that godogen-generated
+// code can reference the constraint without an additional import.
+type Object = framework.Object
+
 // Env holds the shared envtest configuration, initialised once in TestMain.
 type Env struct {
 	Cfg    *rest.Config
@@ -36,7 +42,7 @@ type Env struct {
 
 // Suite holds per-scenario state. Create a fresh instance for each scenario
 // in the godog ScenarioInitializer.
-type Suite[O framework.Object] struct {
+type Suite[O Object] struct {
 	Ctx       context.Context
 	Cancel    context.CancelFunc
 	K8sClient client.Client
@@ -51,7 +57,7 @@ type Suite[O framework.Object] struct {
 
 // New creates a Suite for one scenario. The provider and newObject factory
 // are provider-specific; everything else comes from the shared [Env].
-func New[O framework.Object](
+func New[O Object](
 	env *Env,
 	provider framework.Provider[O],
 	newObject func() O,
@@ -63,81 +69,9 @@ func New[O framework.Object](
 	}
 }
 
-// RegisterSteps binds all common BDD steps and lifecycle hooks to sc.
-func RegisterSteps[O framework.Object](sc *godog.ScenarioContext, s *Suite[O]) {
-	sc.Before(s.before)
-	sc.After(s.after)
-
-	sc.Given(`^a Kubernetes cluster is running$`, s.aKubernetesClusterIsRunning)
-	sc.Given(`^the CRDs are installed$`, s.theCRDsAreInstalled)
-	sc.Given(`^the operator is running$`, s.theOperatorIsRunning)
-
-	sc.When(`^I create a ClientSecret:$`, s.iCreateAClientSecret)
-	sc.When(`^I create a ClientSecret "([^"]*)" with:$`, s.iCreateAClientSecretNamed)
-	sc.When(`^I try to create a ClientSecret "([^"]*)" with:$`, s.iTryToCreateAClientSecretNamed)
-	sc.When(`^I update the ClientSecret "([^"]*)" with:$`, s.iUpdateTheClientSecretWith)
-	sc.When(`^I delete the ClientSecret "([^"]*)"$`, s.iDeleteTheClientSecret)
-	sc.When(
-		`^I expire the credentials for ClientSecret "([^"]*)"$`,
-		s.iExpireTheCredentialsForClientSecret,
-	)
-
-	sc.Then(
-		`^the ClientSecret "([^"]*)" should have phase "([^"]*)"$`,
-		s.theClientSecretShouldHavePhase,
-	)
-	sc.Then(
-		`^the ClientSecret "([^"]*)" should have phase "([^"]*)" within (\d+) seconds$`,
-		s.theClientSecretShouldHavePhaseWithin,
-	)
-	sc.Then(
-		`^the ClientSecret "([^"]*)" should not exist within (\d+) seconds$`,
-		s.theClientSecretShouldNotExistWithin,
-	)
-	sc.Then(
-		`^the ClientSecret "([^"]*)" status should contain message "([^"]*)"$`,
-		s.theClientSecretStatusShouldContainMessage,
-	)
-	sc.Then(
-		`^the ClientSecret "([^"]*)" should have (\d+) active keys$`,
-		s.theClientSecretShouldHaveActiveKeys,
-	)
-	sc.Then(
-		`^the ClientSecret "([^"]*)" should have at least (\d+) active keys within (\d+) seconds$`,
-		s.theClientSecretShouldHaveAtLeastActiveKeysWithin,
-	)
-
-	sc.Then(`^a Secret "([^"]*)" should exist$`, s.aSecretShouldExist)
-	sc.Then(
-		`^the Secret "([^"]*)" should contain key "([^"]*)"$`,
-		s.theSecretShouldContainKey,
-	)
-	sc.Then(
-		`^the Secret "([^"]*)" should contain key "([^"]*)" within (\d+) seconds$`,
-		s.theSecretShouldContainKeyWithin,
-	)
-	sc.Then(
-		`^the Secret "([^"]*)" should contain key "([^"]*)" with value "([^"]*)"$`,
-		s.theSecretShouldContainKeyWithValue,
-	)
-	sc.Then(
-		`^the Secret "([^"]*)" should contain key "([^"]*)" with value "([^"]*)" within (\d+) seconds$`,
-		s.theSecretShouldContainKeyWithValueWithin,
-	)
-	sc.Then(
-		`^the Secret "([^"]*)" should be owned by ClientSecret "([^"]*)"$`,
-		s.theSecretShouldBeOwnedByClientSecret,
-	)
-	sc.Then(`^the operation should have failed$`, s.theOperationShouldHaveFailed)
-	sc.Then(
-		`^the operation should have failed with "([^"]*)"$`,
-		s.theOperationShouldHaveFailedWith,
-	)
-	sc.Then(`^the Secret "([^"]*)" should not exist$`, s.theSecretShouldNotExist)
-}
-
 // --- Lifecycle hooks ---
 
+//godogen:before
 func (s *Suite[O]) before(ctx context.Context, _ *godog.Scenario) (context.Context, error) {
 	s.Ctx, s.Cancel = context.WithTimeout(context.Background(), 2*time.Minute)
 	s.Namespace = fmt.Sprintf("test-%s", uuid.New().String()[:8])
@@ -156,6 +90,7 @@ func (s *Suite[O]) before(ctx context.Context, _ *godog.Scenario) (context.Conte
 	return ctx, nil
 }
 
+//godogen:after
 func (s *Suite[O]) after(ctx context.Context, _ *godog.Scenario, _ error) (context.Context, error) {
 	if s.MgrCancel != nil {
 		s.MgrCancel()
@@ -176,6 +111,7 @@ func (s *Suite[O]) after(ctx context.Context, _ *godog.Scenario, _ error) (conte
 
 // --- Given steps ---
 
+//godogen:given ^a Kubernetes cluster is running$
 func (s *Suite[O]) aKubernetesClusterIsRunning(_ context.Context) error {
 	if s.env.Cfg == nil {
 		return fmt.Errorf("envtest not started")
@@ -183,10 +119,12 @@ func (s *Suite[O]) aKubernetesClusterIsRunning(_ context.Context) error {
 	return nil
 }
 
+//godogen:given ^the CRDs are installed$
 func (s *Suite[O]) theCRDsAreInstalled(_ context.Context) error {
 	return nil // CRDs are installed by envtest.Environment via CRDDirectoryPaths.
 }
 
+//godogen:given ^the operator is running$
 func (s *Suite[O]) theOperatorIsRunning(_ context.Context) error {
 	mgr, err := ctrl.NewManager(s.env.Cfg, ctrl.Options{
 		Scheme:  s.env.Scheme,
@@ -227,6 +165,7 @@ func expandDoc(doc *godog.DocString) string {
 	return os.ExpandEnv(doc.Content)
 }
 
+//godogen:when ^I create a ClientSecret:$
 func (s *Suite[O]) iCreateAClientSecret(_ context.Context, doc *godog.DocString) error {
 	obj := s.newObject()
 	if err := yaml.Unmarshal([]byte(expandDoc(doc)), obj); err != nil {
@@ -236,6 +175,7 @@ func (s *Suite[O]) iCreateAClientSecret(_ context.Context, doc *godog.DocString)
 	return s.K8sClient.Create(s.Ctx, obj)
 }
 
+//godogen:when ^I create a ClientSecret "([^"]*)" with:$
 func (s *Suite[O]) iCreateAClientSecretNamed(
 	_ context.Context,
 	name string,
@@ -250,6 +190,7 @@ func (s *Suite[O]) iCreateAClientSecretNamed(
 	return s.K8sClient.Create(s.Ctx, obj)
 }
 
+//godogen:when ^I try to create a ClientSecret "([^"]*)" with:$
 func (s *Suite[O]) iTryToCreateAClientSecretNamed(
 	ctx context.Context,
 	name string,
@@ -259,6 +200,7 @@ func (s *Suite[O]) iTryToCreateAClientSecretNamed(
 	return nil
 }
 
+//godogen:when ^I update the ClientSecret "([^"]*)" with:$
 func (s *Suite[O]) iUpdateTheClientSecretWith(
 	_ context.Context,
 	name string,
@@ -291,6 +233,7 @@ func (s *Suite[O]) iUpdateTheClientSecretWith(
 	return s.K8sClient.Update(s.Ctx, patch)
 }
 
+//godogen:when ^I delete the ClientSecret "([^"]*)"$
 func (s *Suite[O]) iDeleteTheClientSecret(_ context.Context, name string) error {
 	obj := s.newObject()
 	obj.SetName(name)
@@ -298,6 +241,7 @@ func (s *Suite[O]) iDeleteTheClientSecret(_ context.Context, name string) error 
 	return s.K8sClient.Delete(s.Ctx, obj)
 }
 
+//godogen:when ^I expire the credentials for ClientSecret "([^"]*)"$
 func (s *Suite[O]) iExpireTheCredentialsForClientSecret(_ context.Context, name string) error {
 	obj := s.newObject()
 	if err := s.K8sClient.Get(s.Ctx, client.ObjectKey{
@@ -317,10 +261,12 @@ func (s *Suite[O]) iExpireTheCredentialsForClientSecret(_ context.Context, name 
 
 // --- Then steps: ClientSecret assertions ---
 
+//godogen:then ^the ClientSecret "([^"]*)" should have phase "([^"]*)"$
 func (s *Suite[O]) theClientSecretShouldHavePhase(_ context.Context, name, phase string) error {
 	return s.theClientSecretShouldHavePhaseWithin(context.TODO(), name, phase, 30)
 }
 
+//godogen:then ^the ClientSecret "([^"]*)" should have phase "([^"]*)" within (\d+) seconds$
 func (s *Suite[O]) theClientSecretShouldHavePhaseWithin(
 	_ context.Context,
 	name, phase string,
@@ -345,6 +291,7 @@ func (s *Suite[O]) theClientSecretShouldHavePhaseWithin(
 	return fmt.Errorf("ClientSecret %q phase is %q, expected %q", name, lastPhase, phase)
 }
 
+//godogen:then ^the ClientSecret "([^"]*)" should not exist within (\d+) seconds$
 func (s *Suite[O]) theClientSecretShouldNotExistWithin(
 	_ context.Context,
 	name string,
@@ -364,6 +311,7 @@ func (s *Suite[O]) theClientSecretShouldNotExistWithin(
 	return fmt.Errorf("ClientSecret %q still exists after %d seconds", name, seconds)
 }
 
+//godogen:then ^the ClientSecret "([^"]*)" status should contain message "([^"]*)"$
 func (s *Suite[O]) theClientSecretStatusShouldContainMessage(
 	_ context.Context,
 	name, message string,
@@ -389,6 +337,7 @@ func (s *Suite[O]) theClientSecretStatusShouldContainMessage(
 	return nil
 }
 
+//godogen:then ^the ClientSecret "([^"]*)" should have (\d+) active keys$
 func (s *Suite[O]) theClientSecretShouldHaveActiveKeys(
 	_ context.Context,
 	name string,
@@ -407,6 +356,7 @@ func (s *Suite[O]) theClientSecretShouldHaveActiveKeys(
 	return nil
 }
 
+//godogen:then ^the ClientSecret "([^"]*)" should have at least (\d+) active keys within (\d+) seconds$
 func (s *Suite[O]) theClientSecretShouldHaveAtLeastActiveKeysWithin(
 	_ context.Context,
 	name string,
@@ -438,6 +388,7 @@ func (s *Suite[O]) theClientSecretShouldHaveAtLeastActiveKeysWithin(
 
 // --- Then steps: Secret assertions ---
 
+//godogen:then ^a Secret "([^"]*)" should exist$
 func (s *Suite[O]) aSecretShouldExist(_ context.Context, name string) error {
 	var secret corev1.Secret
 	return s.K8sClient.Get(s.Ctx, client.ObjectKey{
@@ -445,6 +396,7 @@ func (s *Suite[O]) aSecretShouldExist(_ context.Context, name string) error {
 	}, &secret)
 }
 
+//godogen:then ^the Secret "([^"]*)" should contain key "([^"]*)"$
 func (s *Suite[O]) theSecretShouldContainKey(_ context.Context, name, key string) error {
 	var secret corev1.Secret
 	if err := s.K8sClient.Get(s.Ctx, client.ObjectKey{
@@ -462,6 +414,7 @@ func (s *Suite[O]) theSecretShouldContainKey(_ context.Context, name, key string
 	return nil
 }
 
+//godogen:then ^the Secret "([^"]*)" should contain key "([^"]*)" within (\d+) seconds$
 func (s *Suite[O]) theSecretShouldContainKeyWithin(
 	_ context.Context,
 	name, key string,
@@ -487,6 +440,7 @@ func (s *Suite[O]) theSecretShouldContainKeyWithin(
 	)
 }
 
+//godogen:then ^the Secret "([^"]*)" should contain key "([^"]*)" with value "([^"]*)"$
 func (s *Suite[O]) theSecretShouldContainKeyWithValue(
 	_ context.Context,
 	name, key, value string,
@@ -507,6 +461,7 @@ func (s *Suite[O]) theSecretShouldContainKeyWithValue(
 	return nil
 }
 
+//godogen:then ^the Secret "([^"]*)" should contain key "([^"]*)" with value "([^"]*)" within (\d+) seconds$
 func (s *Suite[O]) theSecretShouldContainKeyWithValueWithin(
 	_ context.Context,
 	name, key, value string,
@@ -535,6 +490,7 @@ func (s *Suite[O]) theSecretShouldContainKeyWithValueWithin(
 	)
 }
 
+//godogen:then ^the Secret "([^"]*)" should be owned by ClientSecret "([^"]*)"$
 func (s *Suite[O]) theSecretShouldBeOwnedByClientSecret(
 	_ context.Context,
 	secretName, ownerName string,
@@ -557,6 +513,7 @@ func (s *Suite[O]) theSecretShouldBeOwnedByClientSecret(
 	)
 }
 
+//godogen:then ^the operation should have failed$
 func (s *Suite[O]) theOperationShouldHaveFailed(_ context.Context) error {
 	if s.lastErr == nil {
 		return fmt.Errorf("expected operation to fail, but it succeeded")
@@ -565,6 +522,7 @@ func (s *Suite[O]) theOperationShouldHaveFailed(_ context.Context) error {
 	return nil
 }
 
+//godogen:then ^the operation should have failed with "([^"]*)"$
 func (s *Suite[O]) theOperationShouldHaveFailedWith(_ context.Context, message string) error {
 	if s.lastErr == nil {
 		return fmt.Errorf("expected operation to fail, but it succeeded")
@@ -577,6 +535,7 @@ func (s *Suite[O]) theOperationShouldHaveFailedWith(_ context.Context, message s
 	return nil
 }
 
+//godogen:then ^the Secret "([^"]*)" should not exist$
 func (s *Suite[O]) theSecretShouldNotExist(_ context.Context, name string) error {
 	var secret corev1.Secret
 	err := s.K8sClient.Get(s.Ctx, client.ObjectKey{

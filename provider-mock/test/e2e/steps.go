@@ -19,7 +19,6 @@ type Suite struct {
 	provider *mock.Provider
 }
 
-//
 //godogen:then ^the mock provider should have received at least (\d+) provision calls$
 func (s *Suite) theMockProviderShouldHaveReceivedAtLeastProvisionCalls(
 	_ context.Context,
@@ -32,7 +31,6 @@ func (s *Suite) theMockProviderShouldHaveReceivedAtLeastProvisionCalls(
 	return nil
 }
 
-//
 //godogen:then ^the mock provider should have received at least (\d+) provision calls within (\d+) seconds$
 func (s *Suite) theMockProviderShouldHaveReceivedAtLeastProvisionCallsWithin(
 	_ context.Context,
@@ -57,7 +55,6 @@ func (s *Suite) theMockProviderShouldHaveReceivedAtLeastProvisionCallsWithin(
 	)
 }
 
-//
 //godogen:then ^the mock provider should have received at least (\d+) delete key calls within (\d+) seconds$
 func (s *Suite) theMockProviderShouldHaveReceivedAtLeastDeleteKeyCallsWithin(
 	_ context.Context,
