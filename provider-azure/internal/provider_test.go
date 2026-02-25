@@ -100,7 +100,7 @@ func TestGraphRequest(t *testing.T) {
 				t.Fatalf("expected application/json, got %s", ct)
 			}
 			w.WriteHeader(http.StatusOK)
-			json.NewEncoder(w).Encode(map[string]string{"ok": "true"})
+			_ = json.NewEncoder(w).Encode(map[string]string{"ok": "true"})
 		}))
 		defer srv.Close()
 
@@ -125,7 +125,7 @@ func TestGraphRequest(t *testing.T) {
 				t.Fatalf("expected GET, got %s", r.Method)
 			}
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{"id":"123"}`))
+			_, _ = w.Write([]byte(`{"id":"123"}`))
 		}))
 		defer srv.Close()
 
@@ -142,7 +142,7 @@ func TestGraphRequest(t *testing.T) {
 	t.Run("HTTP error response", func(t *testing.T) {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusForbidden)
-			w.Write([]byte(`{"error":"access denied"}`))
+			_, _ = w.Write([]byte(`{"error":"access denied"}`))
 		}))
 		defer srv.Close()
 

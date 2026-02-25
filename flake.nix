@@ -17,7 +17,7 @@
 
         # SRI hash for the Go workspace vendor (go work vendor).
         # Update with `nix build` after changing any go.mod / go.sum.
-        config.valet.lib.vendorHash = "sha256-DhWIpwN8p77z5HGDJNFql9wPPFSLZnDmk40xB+orrlc=";
+        config.valet.lib.vendorHash = "sha256-VhLiEUn1bE90Iu5DYLjooNkiNGKQZHQaCADd2XnAWs8=";
 
         imports = [
           ./nix/package.nix

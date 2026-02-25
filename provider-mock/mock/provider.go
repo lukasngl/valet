@@ -63,4 +63,3 @@ func (p *Provider) DeleteKey(_ context.Context, obj *v1alpha1.ClientSecret, keyI
 	}
 	return nil
 }
-

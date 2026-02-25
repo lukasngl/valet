@@ -32,8 +32,10 @@ tidy:
     find . -name go.mod -exec sh -c 'cd $(dirname {}); go mod tidy ' \;
 
 # Run golangci-lint
-lint *args:
-    find . -name go.mod -exec sh -c 'cd $(dirname "$1") && golangci-lint run {{ args }}' _ {} \;
+lint *args: (_lint "framework" args) (_lint "provider-azure" args) (_lint "provider-mock" args)
+
+_lint module *args:
+    cd {{ module }} && golangci-lint run {{ args }}
 
 # Install CRDs into cluster for a provider
 install name: (_gen-chart name)

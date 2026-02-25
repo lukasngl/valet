@@ -69,9 +69,9 @@ func TestGetSecretRef(t *testing.T) {
 
 func TestGetStatus(t *testing.T) {
 	obj := &ClientSecret{}
-	obj.Status.Phase = "Ready"
-	if got := obj.GetStatus().Phase; got != "Ready" {
-		t.Fatalf("GetStatus().Phase = %q, want %q", got, "Ready")
+	obj.Status.Phase = framework.PhaseReady
+	if got := obj.GetStatus().Phase; got != framework.PhaseReady {
+		t.Fatalf("GetStatus().Phase = %q, want %q", got, framework.PhaseReady)
 	}
 }
 
@@ -104,7 +104,7 @@ func TestDeepCopyObject(t *testing.T) {
 			Validity:   &validity,
 		},
 	}
-	obj.Status.Phase = "Ready"
+	obj.Status.Phase = framework.PhaseReady
 
 	cp := obj.DeepCopyObject().(*ClientSecret)
 
