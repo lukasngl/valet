@@ -136,6 +136,22 @@ Feature: Secret Provisioning
     Then the Secret "spec-update-test" should contain key "KEY" with value "updated-value" within 30 seconds
     And the mock provider should have received at least 2 provision calls
 
+  Scenario: DeleteKey failure during deletion blocks finalizer
+    When I create a ClientSecret "delete-fail" with:
+      """yaml
+      spec:
+        secretRef:
+          name: delete-fail
+        shouldFailDeleteKey: true
+        secretData:
+          KEY: "value"
+      """
+    Then the ClientSecret "delete-fail" should have phase "Ready" within 30 seconds
+    When I delete the ClientSecret "delete-fail"
+    # Finalizer retries because active key deletion fails
+    Then the mock provider should have received at least 1 delete key calls within 30 seconds
+    And the ClientSecret "delete-fail" should have phase "Ready" within 5 seconds
+
   Scenario: DeleteKey failure keeps key in active list
     When I create a ClientSecret:
       """yaml
