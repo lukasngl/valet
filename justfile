@@ -1,8 +1,8 @@
-registry := "ghcr.io/lukasngl/valet"
-
 # Show available recipes
 default:
     @just --list
+
+fix: tidy gen fmt (lint "--fix")
 
 # Run all code generation
 gen: (_gen-chart "azure") (_gen-chart "mock")
@@ -31,31 +31,9 @@ fmt:
 tidy:
     find . -name go.mod -exec sh -c 'cd $(dirname {}); go mod tidy ' \;
 
-# Run unit tests
-test:
-    go test ./... -coverprofile cover.out
-
-# Run e2e tests
-e2e:
-    go test ./test/e2e/... -v -timeout 10m
-
 # Run golangci-lint
 lint *args:
-    golangci-lint run {{ args }}
-
-# Build container image with nix
-image-build:
-    nix build .#image --print-out-paths --print-build-logs
-
-# Push container image to registry
-image-push *skopeo_args:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    image_script=$(nix build .#image --no-link --print-out-paths)
-    tag=$(nix eval --raw .#image.imageTag)
-    $image_script | skopeo copy {{ skopeo_args }} \
-        docker-archive:/dev/stdin \
-        docker://{{ registry }}:${tag}
+    find . -name go.mod -exec sh -c 'cd $(dirname "$1") && golangci-lint run {{ args }}' _ {} \;
 
 # Install CRDs into cluster for a provider
 install name: (_gen-chart name)
@@ -64,3 +42,11 @@ install name: (_gen-chart name)
 # Uninstall CRDs from cluster for a provider
 uninstall name:
     kubectl delete -f provider-{{ name }}/charts/provider-{{ name }}/crds/ --ignore-not-found
+
+# Print nix check matrix as JSON (used by CI)
+_print-checks:
+    @nix flake show --json 2>/dev/null | jq -c '[.checks."x86_64-linux" | to_entries[] | {check: .key}]'
+
+# Print e2e test app matrix as JSON (used by CI)
+_print-e2e-tests:
+    @nix flake show --json 2>/dev/null | jq -c '[.apps."x86_64-linux" | to_entries[] | select(.key | startswith("e2e-test-")) | {app: .key}]'

@@ -1,0 +1,3 @@
+# Run all tests including e2e (no external credentials needed)
+test:
+    gotestsum --format short-verbose -- ./provider-mock/...

@@ -1,0 +1,7 @@
+# Run unit + integration tests (short mode, no Azure needed)
+test:
+    gotestsum --format short-verbose -- -short ./provider-azure/...
+
+# Run e2e tests (requires Azure credentials in environment)
+e2e:
+    gotestsum --format short-verbose -- -run TestE2E -timeout 10m ./provider-azure/...

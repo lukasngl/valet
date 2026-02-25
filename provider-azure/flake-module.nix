@@ -34,11 +34,36 @@
           WorkingDir = "/";
         };
       };
+      e2e-test-azure = pkgs.writeShellApplication {
+        name = "e2e-test-azure";
+        runtimeInputs = [
+          pkgs.go
+          pkgs.gotestsum
+        ];
+        text = ''
+          export GOFLAGS="-mod=vendor"
+          if [ ! -d vendor ]; then
+            ln -sfn ${valet.workspaceVendor} vendor
+          fi
+          export KUBEBUILDER_ASSETS=${valet.envtestBinaries}
+          gotestsum \
+            --format "''${GOTESTSUM_FORMAT:-short-verbose}" \
+            -- -run TestE2E -timeout 10m \
+            -coverpkg=github.com/lukasngl/valet/framework/...,./... \
+            -coverprofile="''${COVERAGE_FILE:-coverage-azure-e2e.txt}" \
+            ./provider-azure/...
+        '';
+      };
     in
     {
       packages = {
         inherit provider-azure provider-azure-compressed;
         provider-azure-image = image;
+      };
+
+      apps.e2e-test-azure = {
+        type = "app";
+        program = "${e2e-test-azure}/bin/e2e-test-azure";
       };
 
       checks.provider-azure-helm = valet.packageChart {

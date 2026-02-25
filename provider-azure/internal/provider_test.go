@@ -105,7 +105,12 @@ func TestGraphRequest(t *testing.T) {
 		defer srv.Close()
 
 		p := New(WithHTTPClient(srv.Client()), WithBaseURL(srv.URL))
-		body, err := p.graphRequest(context.Background(), "POST", "/test", map[string]string{"key": "val"})
+		body, err := p.graphRequest(
+			context.Background(),
+			"POST",
+			"/test",
+			map[string]string{"key": "val"},
+		)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -193,24 +198,32 @@ func TestInitClient(t *testing.T) {
 	})
 }
 
-func TestGraphRequestWithBadCredentials(t *testing.T) {
-	t.Setenv("AZURE_TENANT_ID", "fake-tenant")
-	t.Setenv("AZURE_CLIENT_ID", "fake-client")
-	t.Setenv("AZURE_CLIENT_SECRET", "fake-secret")
-
-	p := New()
-	if err := p.initClient(); err != nil {
-		t.Fatalf("unexpected initClient error: %v", err)
+// TestE2E groups tests that require network access (e.g. Azure AD).
+// Skipped with -short; targeted by the e2e nix app via -run TestE2E.
+func TestE2E(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping e2e tests in short mode")
 	}
 
-	// graphRequest calls GetToken which contacts Azure AD and fails.
-	_, err := p.graphRequest(context.Background(), "GET", "/test", nil)
-	if err == nil {
-		t.Fatal("expected token acquisition error")
-	}
-	if !strings.Contains(err.Error(), "getting token") {
-		t.Fatalf("expected 'getting token' error, got: %v", err)
-	}
+	t.Run("bad credentials", func(t *testing.T) {
+		t.Setenv("AZURE_TENANT_ID", "fake-tenant")
+		t.Setenv("AZURE_CLIENT_ID", "fake-client")
+		t.Setenv("AZURE_CLIENT_SECRET", "fake-secret")
+
+		p := New()
+		if err := p.initClient(); err != nil {
+			t.Fatalf("unexpected initClient error: %v", err)
+		}
+
+		// graphRequest calls GetToken which contacts Azure AD and fails.
+		_, err := p.graphRequest(context.Background(), "GET", "/test", nil)
+		if err == nil {
+			t.Fatal("expected token acquisition error")
+		}
+		if !strings.Contains(err.Error(), "getting token") {
+			t.Fatalf("expected 'getting token' error, got: %v", err)
+		}
+	})
 }
 
 func TestRenderTemplate(t *testing.T) {

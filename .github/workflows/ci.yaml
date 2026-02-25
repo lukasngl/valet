@@ -21,6 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       checks: ${{ steps.set.outputs.checks }}
+      e2e: ${{ steps.set.outputs.e2e }}
     steps:
       - uses: actions/checkout@v4
 
@@ -28,8 +29,11 @@ jobs:
 
       - id: set
         run: |
-          checks=$(nix flake show --json 2>/dev/null | jq -c '[.checks."x86_64-linux" | to_entries[] | {check: .key}]')
+          flake=$(nix flake show --json 2>/dev/null)
+          checks=$(echo "$flake" | jq -c '[.checks."x86_64-linux" | to_entries[] | {check: .key}]')
+          e2e=$(echo "$flake" | jq -c '[.apps."x86_64-linux" | to_entries[] | select(.key | startswith("e2e-test-")) | {app: .key}]')
           echo "checks=$checks" >> "$GITHUB_OUTPUT"
+          echo "e2e=$e2e" >> "$GITHUB_OUTPUT"
 
   check:
     needs: nix-matrix
@@ -60,11 +64,20 @@ jobs:
           path: "coverage-${{ matrix.check }}.txt"
 
   e2e-test:
-    needs: check
+    needs: [check, nix-matrix]
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        shell: nix develop .#ci -c bash -e {0}
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.nix-matrix.outputs.e2e) }}
+    env:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      TEST_AZURE_OWNED_APP_OBJECT_ID: ${{ secrets.TEST_AZURE_OWNED_APP_OBJECT_ID }}
+      TEST_AZURE_OTHER_APP_OBJECT_ID: ${{ secrets.TEST_AZURE_OTHER_APP_OBJECT_ID }}
+      GOTESTSUM_FORMAT: github-actions
+      COVERAGE_FILE: coverage-${{ matrix.app }}.txt
     steps:
       - uses: actions/checkout@v4
 
@@ -72,24 +85,15 @@ jobs:
 
       - uses: DeterminateSystems/magic-nix-cache-action@main
 
-      - name: Cache devShell
-        run: true
-
-      - name: Run Azure e2e tests
-        env:
-          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
-          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          TEST_AZURE_OWNED_APP_OBJECT_ID: ${{ secrets.TEST_AZURE_OWNED_APP_OBJECT_ID }}
-          TEST_AZURE_OTHER_APP_OBJECT_ID: ${{ secrets.TEST_AZURE_OTHER_APP_OBJECT_ID }}
-        run: gotestsum --format github-actions -- -run TestE2E -timeout 10m -coverpkg=github.com/lukasngl/valet/framework/...,./... -coverprofile=coverage-azure-e2e.txt ./provider-azure/...
+      - name: Run ${{ matrix.app }}
+        run: nix run .#${{ matrix.app }}
 
       - name: Upload coverage
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: coverage-azure-e2e
-          path: coverage-azure-e2e.txt
+          name: coverage-${{ matrix.app }}
+          path: coverage-${{ matrix.app }}.txt
 
   coverage:
     needs: [check, e2e-test]
