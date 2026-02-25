@@ -196,12 +196,8 @@ func (p *Provider) DeleteKey(
 				Info("key already deleted", "keyId", keyID, "objectId", obj.Spec.ObjectID)
 			return nil
 		}
-		return fmt.Errorf(
-			"removing password %s from application %s: %w",
-			keyID,
-			obj.Spec.ObjectID,
-			err,
-		)
+		return fmt.Errorf("removing password %s from application %s: %w",
+			keyID, obj.Spec.ObjectID, err)
 	}
 
 	return nil

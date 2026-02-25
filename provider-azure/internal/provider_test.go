@@ -8,6 +8,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/lukasngl/valet/provider-azure/api/v1alpha1"
 )
 
 func TestIsRateLimitError(t *testing.T) {
@@ -222,6 +224,193 @@ func TestE2E(t *testing.T) {
 		}
 		if !strings.Contains(err.Error(), "getting token") {
 			t.Fatalf("expected 'getting token' error, got: %v", err)
+		}
+	})
+}
+
+func TestProvision(t *testing.T) {
+	newObj := func(objectID string, template map[string]string) *v1alpha1.AzureClientSecret {
+		return &v1alpha1.AzureClientSecret{
+			Spec: v1alpha1.AzureClientSecretSpec{
+				ObjectID: objectID,
+				Template: template,
+			},
+		}
+	}
+
+	t.Run("happy path", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if strings.HasSuffix(r.URL.Path, "/addPassword") {
+				_ = json.NewEncoder(w).Encode(addPasswordResponse{
+					KeyID: "key-1", SecretText: "s3cret",
+				})
+				return
+			}
+			_ = json.NewEncoder(w).Encode(applicationResponse{AppID: "app-123"})
+		}))
+		defer srv.Close()
+
+		p := New(WithHTTPClient(srv.Client()), WithBaseURL(srv.URL))
+		obj := newObj("obj-1", map[string]string{
+			"CLIENT_ID":     "{{ .ClientID }}",
+			"CLIENT_SECRET": "{{ .ClientSecret }}",
+		})
+
+		result, err := p.Provision(context.Background(), obj)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if result.KeyID != "key-1" {
+			t.Fatalf("got keyID %q, want %q", result.KeyID, "key-1")
+		}
+		if result.StringData["CLIENT_ID"] != "app-123" {
+			t.Fatalf("got CLIENT_ID %q, want %q", result.StringData["CLIENT_ID"], "app-123")
+		}
+		if result.StringData["CLIENT_SECRET"] != "s3cret" {
+			t.Fatalf("got CLIENT_SECRET %q, want %q", result.StringData["CLIENT_SECRET"], "s3cret")
+		}
+	})
+
+	t.Run("empty secret text", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			_ = json.NewEncoder(w).Encode(addPasswordResponse{KeyID: "key-1", SecretText: ""})
+		}))
+		defer srv.Close()
+
+		p := New(WithHTTPClient(srv.Client()), WithBaseURL(srv.URL))
+		_, err := p.Provision(context.Background(), newObj("obj-1", map[string]string{"K": "v"}))
+		if err == nil {
+			t.Fatal("expected error for empty secret text")
+		}
+		if !strings.Contains(err.Error(), "no secret text") {
+			t.Fatalf("expected 'no secret text' error, got: %v", err)
+		}
+	})
+
+	t.Run("bad addPassword JSON", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = w.Write([]byte(`not json`))
+		}))
+		defer srv.Close()
+
+		p := New(WithHTTPClient(srv.Client()), WithBaseURL(srv.URL))
+		_, err := p.Provision(context.Background(), newObj("obj-1", map[string]string{"K": "v"}))
+		if err == nil {
+			t.Fatal("expected unmarshal error")
+		}
+		if !strings.Contains(err.Error(), "parsing addPassword response") {
+			t.Fatalf("expected 'parsing addPassword response' error, got: %v", err)
+		}
+	})
+
+	t.Run("bad application JSON", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if strings.HasSuffix(r.URL.Path, "/addPassword") {
+				_ = json.NewEncoder(w).Encode(addPasswordResponse{
+					KeyID: "key-1", SecretText: "s3cret",
+				})
+				return
+			}
+			_, _ = w.Write([]byte(`not json`))
+		}))
+		defer srv.Close()
+
+		p := New(WithHTTPClient(srv.Client()), WithBaseURL(srv.URL))
+		_, err := p.Provision(context.Background(), newObj("obj-1", map[string]string{"K": "v"}))
+		if err == nil {
+			t.Fatal("expected unmarshal error")
+		}
+		if !strings.Contains(err.Error(), "parsing application response") {
+			t.Fatalf("expected 'parsing application response' error, got: %v", err)
+		}
+	})
+
+	t.Run("bad template", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if strings.HasSuffix(r.URL.Path, "/addPassword") {
+				_ = json.NewEncoder(w).Encode(addPasswordResponse{
+					KeyID: "key-1", SecretText: "s3cret",
+				})
+				return
+			}
+			_ = json.NewEncoder(w).Encode(applicationResponse{AppID: "app-123"})
+		}))
+		defer srv.Close()
+
+		p := New(WithHTTPClient(srv.Client()), WithBaseURL(srv.URL))
+		_, err := p.Provision(context.Background(), newObj("obj-1", map[string]string{
+			"BAD": "{{ .Unclosed",
+		}))
+		if err == nil {
+			t.Fatal("expected template error")
+		}
+		if !strings.Contains(err.Error(), "rendering template") {
+			t.Fatalf("expected 'rendering template' error, got: %v", err)
+		}
+	})
+}
+
+func TestDeleteKey(t *testing.T) {
+	t.Run("empty keyID is a no-op", func(t *testing.T) {
+		p := New(WithHTTPClient(&http.Client{}))
+		if err := p.DeleteKey(context.Background(), &v1alpha1.AzureClientSecret{}, ""); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("happy path", func(t *testing.T) {
+		var called bool
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			called = true
+			w.WriteHeader(http.StatusNoContent)
+		}))
+		defer srv.Close()
+
+		p := New(WithHTTPClient(srv.Client()), WithBaseURL(srv.URL))
+		obj := &v1alpha1.AzureClientSecret{
+			Spec: v1alpha1.AzureClientSecretSpec{ObjectID: "obj-1"},
+		}
+		if err := p.DeleteKey(context.Background(), obj, "key-1"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !called {
+			t.Fatal("expected server to be called")
+		}
+	})
+
+	t.Run("already deleted is idempotent", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte(`{"error":"No password credential found"}`))
+		}))
+		defer srv.Close()
+
+		p := New(WithHTTPClient(srv.Client()), WithBaseURL(srv.URL))
+		obj := &v1alpha1.AzureClientSecret{
+			Spec: v1alpha1.AzureClientSecretSpec{ObjectID: "obj-1"},
+		}
+		if err := p.DeleteKey(context.Background(), obj, "gone-key"); err != nil {
+			t.Fatalf("expected nil for already-deleted key, got: %v", err)
+		}
+	})
+
+	t.Run("other error propagates", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusInternalServerError)
+			_, _ = w.Write([]byte(`{"error":"internal"}`))
+		}))
+		defer srv.Close()
+
+		p := New(WithHTTPClient(srv.Client()), WithBaseURL(srv.URL))
+		obj := &v1alpha1.AzureClientSecret{
+			Spec: v1alpha1.AzureClientSecretSpec{ObjectID: "obj-1"},
+		}
+		err := p.DeleteKey(context.Background(), obj, "key-1")
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if !strings.Contains(err.Error(), "removing password") {
+			t.Fatalf("expected 'removing password' error, got: %v", err)
 		}
 	})
 }
