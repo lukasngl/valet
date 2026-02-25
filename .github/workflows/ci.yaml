@@ -82,7 +82,7 @@ jobs:
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           TEST_AZURE_OWNED_APP_OBJECT_ID: ${{ secrets.TEST_AZURE_OWNED_APP_OBJECT_ID }}
           TEST_AZURE_OTHER_APP_OBJECT_ID: ${{ secrets.TEST_AZURE_OTHER_APP_OBJECT_ID }}
-        run: gotestsum --format github-actions -- -run TestE2E -timeout 10m -coverprofile=coverage-azure-e2e.txt ./provider-azure/...
+        run: gotestsum --format github-actions -- -run TestE2E -timeout 10m -coverpkg=github.com/lukasngl/valet/framework/...,./... -coverprofile=coverage-azure-e2e.txt ./provider-azure/...
 
       - name: Upload coverage
         if: always()

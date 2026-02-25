@@ -65,7 +65,7 @@
         buildPhase = ''
           export HOME=$(mktemp -d)
           export KUBEBUILDER_ASSETS=${valet.envtestBinaries}
-          gotestsum --format short-verbose -- -short -coverprofile=coverage.txt ./provider-azure/...
+          gotestsum --format short-verbose -- -short -coverpkg=github.com/lukasngl/valet/framework/...,./... -coverprofile=coverage.txt ./provider-azure/...
         '';
         installPhase = ''
           mkdir -p $out
