@@ -14,7 +14,7 @@ Feature: Azure Secret Provisioning
       spec:
         secretRef:
           name: test-secret
-        objectId: "$TEST_AZURE_OBJECT_ID"
+        objectId: "$TEST_AZURE_OWNED_APP_OBJECT_ID"
         template:
           CLIENT_ID: "{{ .ClientID }}"
           CLIENT_SECRET: "{{ .ClientSecret }}"
@@ -30,7 +30,7 @@ Feature: Azure Secret Provisioning
       spec:
         secretRef:
           name: bad-template
-        objectId: "$TEST_AZURE_OBJECT_ID"
+        objectId: "$TEST_AZURE_OWNED_APP_OBJECT_ID"
         template:
           SECRET: "{{ .Invalid"
       """
@@ -44,7 +44,7 @@ Feature: Azure Secret Provisioning
       spec:
         secretRef:
           name: delete-test
-        objectId: "$TEST_AZURE_OBJECT_ID"
+        objectId: "$TEST_AZURE_OWNED_APP_OBJECT_ID"
         template:
           CLIENT_SECRET: "{{ .ClientSecret }}"
       """
@@ -59,7 +59,7 @@ Feature: Azure Secret Provisioning
       spec:
         secretRef:
           name: rotation-test
-        objectId: "$TEST_AZURE_OBJECT_ID"
+        objectId: "$TEST_AZURE_OWNED_APP_OBJECT_ID"
         template:
           CLIENT_SECRET: "{{ .ClientSecret }}"
       """
@@ -74,7 +74,7 @@ Feature: Azure Secret Provisioning
       spec:
         secretRef:
           name: spec-update
-        objectId: "$TEST_AZURE_OBJECT_ID"
+        objectId: "$TEST_AZURE_OWNED_APP_OBJECT_ID"
         template:
           CLIENT_SECRET: "{{ .ClientSecret }}"
       """
@@ -85,7 +85,7 @@ Feature: Azure Secret Provisioning
       spec:
         secretRef:
           name: spec-update
-        objectId: "$TEST_AZURE_OBJECT_ID"
+        objectId: "$TEST_AZURE_OWNED_APP_OBJECT_ID"
         template:
           CLIENT_SECRET: "{{ .ClientSecret }}"
           CLIENT_ID: "{{ .ClientID }}"
@@ -96,7 +96,7 @@ Feature: Azure Secret Provisioning
     When I try to create a ClientSecret "no-ref" with:
       """yaml
       spec:
-        objectId: "$TEST_AZURE_OBJECT_ID"
+        objectId: "$TEST_AZURE_OWNED_APP_OBJECT_ID"
         template:
           CLIENT_SECRET: "{{ .ClientSecret }}"
       """
@@ -108,7 +108,7 @@ Feature: Azure Secret Provisioning
       spec:
         secretRef:
           name: ownership-test
-        objectId: "$TEST_AZURE_OBJECT_ID"
+        objectId: "$TEST_AZURE_OWNED_APP_OBJECT_ID"
         template:
           CLIENT_SECRET: "{{ .ClientSecret }}"
       """
@@ -121,7 +121,7 @@ Feature: Azure Secret Provisioning
       spec:
         secretRef:
           name: recreate-test
-        objectId: "$TEST_AZURE_OBJECT_ID"
+        objectId: "$TEST_AZURE_OWNED_APP_OBJECT_ID"
         template:
           CLIENT_SECRET: "{{ .ClientSecret }}"
       """
@@ -134,7 +134,7 @@ Feature: Azure Secret Provisioning
       spec:
         secretRef:
           name: recreate-test
-        objectId: "$TEST_AZURE_OBJECT_ID"
+        objectId: "$TEST_AZURE_OWNED_APP_OBJECT_ID"
         template:
           CLIENT_SECRET: "{{ .ClientSecret }}"
       """
@@ -148,7 +148,7 @@ Feature: Azure Secret Provisioning
       spec:
         secretRef:
           name: value-check
-        objectId: "$TEST_AZURE_OBJECT_ID"
+        objectId: "$TEST_AZURE_OWNED_APP_OBJECT_ID"
         template:
           CLIENT_ID: "{{ .ClientID }}"
           CLIENT_SECRET: "{{ .ClientSecret }}"

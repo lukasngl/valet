@@ -73,7 +73,7 @@ func TestMain(m *testing.M) {
 
 // TestMock runs all scenarios with a canned HTTP transport.
 func TestMock(t *testing.T) {
-	t.Setenv("TEST_AZURE_OBJECT_ID", "00000000-0000-0000-0000-000000000001")
+	t.Setenv("TEST_AZURE_OWNED_APP_OBJECT_ID", "00000000-0000-0000-0000-000000000001")
 
 	opts := godogOpts
 	status := godog.TestSuite{
