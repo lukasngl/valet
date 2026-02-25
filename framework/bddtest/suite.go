@@ -259,6 +259,23 @@ func (s *Suite[O]) iExpireTheCredentialsForClientSecret(_ context.Context, name 
 	return s.K8sClient.Status().Update(s.Ctx, obj)
 }
 
+// pollInterval is the delay between retries in [eventually].
+const pollInterval = 200 * time.Millisecond
+
+// Eventually retries fn until it returns nil or the timeout expires.
+// On timeout it returns the last error from fn.
+func Eventually(timeout time.Duration, fn func() error) error {
+	deadline := time.Now().Add(timeout)
+	var lastErr error
+	for time.Now().Before(deadline) {
+		if lastErr = fn(); lastErr == nil {
+			return nil
+		}
+		time.Sleep(pollInterval)
+	}
+	return lastErr
+}
+
 // --- Then steps: ClientSecret assertions ---
 
 //godogen:then ^the ClientSecret "([^"]*)" should have phase "([^"]*)" within (\d+) seconds$
@@ -267,23 +284,21 @@ func (s *Suite[O]) theClientSecretShouldHavePhaseWithin(
 	name, phase string,
 	seconds int,
 ) error {
-	deadline := time.Now().Add(time.Duration(seconds) * time.Second)
 	var lastPhase string
-	for time.Now().Before(deadline) {
+	return Eventually(time.Duration(seconds)*time.Second, func() error {
 		obj := s.newObject()
 		if err := s.K8sClient.Get(s.Ctx, client.ObjectKey{
 			Namespace: s.Namespace, Name: name,
 		}, obj); err != nil {
-			time.Sleep(200 * time.Millisecond)
-			continue
+			return err
 		}
 		lastPhase = obj.GetStatus().Phase
 		if lastPhase == phase {
 			return nil
 		}
-		time.Sleep(200 * time.Millisecond)
-	}
-	return fmt.Errorf("ClientSecret %q phase is %q, expected %q", name, lastPhase, phase)
+		return fmt.Errorf("ClientSecret %q phase is %q, expected %q",
+			name, lastPhase, phase)
+	})
 }
 
 //godogen:then ^the ClientSecret "([^"]*)" should not exist within (\d+) seconds$
@@ -292,8 +307,7 @@ func (s *Suite[O]) theClientSecretShouldNotExistWithin(
 	name string,
 	seconds int,
 ) error {
-	deadline := time.Now().Add(time.Duration(seconds) * time.Second)
-	for time.Now().Before(deadline) {
+	return Eventually(time.Duration(seconds)*time.Second, func() error {
 		obj := s.newObject()
 		err := s.K8sClient.Get(s.Ctx, client.ObjectKey{
 			Namespace: s.Namespace, Name: name,
@@ -301,9 +315,8 @@ func (s *Suite[O]) theClientSecretShouldNotExistWithin(
 		if err != nil {
 			return client.IgnoreNotFound(err)
 		}
-		time.Sleep(200 * time.Millisecond)
-	}
-	return fmt.Errorf("ClientSecret %q still exists after %d seconds", name, seconds)
+		return fmt.Errorf("ClientSecret %q still exists", name)
+	})
 }
 
 //godogen:then ^the ClientSecret "([^"]*)" status should contain message "([^"]*)"$
@@ -353,24 +366,21 @@ func (s *Suite[O]) theClientSecretShouldHaveAtLeastActiveKeysWithin(
 	name string,
 	count, seconds int,
 ) error {
-	deadline := time.Now().Add(time.Duration(seconds) * time.Second)
 	var lastCount int
-	for time.Now().Before(deadline) {
+	return Eventually(time.Duration(seconds)*time.Second, func() error {
 		obj := s.newObject()
 		if err := s.K8sClient.Get(s.Ctx, client.ObjectKey{
 			Namespace: s.Namespace, Name: name,
 		}, obj); err != nil {
-			time.Sleep(200 * time.Millisecond)
-			continue
+			return err
 		}
 		lastCount = len(obj.GetStatus().ActiveKeys)
 		if lastCount >= count {
 			return nil
 		}
-		time.Sleep(200 * time.Millisecond)
-	}
-	return fmt.Errorf("ClientSecret %q has %d active keys, expected at least %d",
-		name, lastCount, count)
+		return fmt.Errorf("ClientSecret %q has %d active keys, expected at least %d",
+			name, lastCount, count)
+	})
 }
 
 // --- Then steps: Secret assertions ---
@@ -407,21 +417,19 @@ func (s *Suite[O]) theSecretShouldContainKeyWithin(
 	name, key string,
 	seconds int,
 ) error {
-	deadline := time.Now().Add(time.Duration(seconds) * time.Second)
-	for time.Now().Before(deadline) {
+	return Eventually(time.Duration(seconds)*time.Second, func() error {
 		var secret corev1.Secret
 		if err := s.K8sClient.Get(s.Ctx, client.ObjectKey{
 			Namespace: s.Namespace, Name: name,
 		}, &secret); err != nil {
-			time.Sleep(200 * time.Millisecond)
-			continue
+			return err
 		}
 		if val, ok := secret.Data[key]; ok && len(val) > 0 {
 			return nil
 		}
-		time.Sleep(200 * time.Millisecond)
-	}
-	return fmt.Errorf("key %q in secret %q not found or empty after %d seconds", key, name, seconds)
+		return fmt.Errorf("key %q in secret %q not found or empty",
+			key, name)
+	})
 }
 
 //godogen:then ^the Secret "([^"]*)" should contain key "([^"]*)" with value "([^"]*)"$
@@ -451,22 +459,19 @@ func (s *Suite[O]) theSecretShouldContainKeyWithValueWithin(
 	name, key, value string,
 	seconds int,
 ) error {
-	deadline := time.Now().Add(time.Duration(seconds) * time.Second)
-	for time.Now().Before(deadline) {
+	return Eventually(time.Duration(seconds)*time.Second, func() error {
 		var secret corev1.Secret
 		if err := s.K8sClient.Get(s.Ctx, client.ObjectKey{
 			Namespace: s.Namespace, Name: name,
 		}, &secret); err != nil {
-			time.Sleep(200 * time.Millisecond)
-			continue
+			return err
 		}
 		if actual, ok := secret.Data[key]; ok && string(actual) == value {
 			return nil
 		}
-		time.Sleep(200 * time.Millisecond)
-	}
-	return fmt.Errorf("key %q in secret %q did not reach value %q within %d seconds",
-		key, name, value, seconds)
+		return fmt.Errorf("key %q in secret %q did not reach value %q",
+			key, name, value)
+	})
 }
 
 //godogen:then ^the Secret "([^"]*)" should be owned by ClientSecret "([^"]*)"$

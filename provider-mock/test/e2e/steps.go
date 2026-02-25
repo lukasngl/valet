@@ -36,21 +36,14 @@ func (s *Suite) theMockProviderShouldHaveReceivedAtLeastProvisionCallsWithin(
 	_ context.Context,
 	count, seconds int,
 ) error {
-	deadline := time.Now().Add(time.Duration(seconds) * time.Second)
-
-	var actual int
-	for time.Now().Before(deadline) {
-		actual = s.provider.ProvisionCount
-		if actual >= count {
+	return bddtest.Eventually(time.Duration(seconds)*time.Second, func() error {
+		if actual := s.provider.ProvisionCount; actual >= count {
 			return nil
+		} else {
+			return fmt.Errorf("expected at least %d provision calls, got %d",
+				count, actual)
 		}
-		time.Sleep(200 * time.Millisecond)
-	}
-
-	return fmt.Errorf(
-		"expected at least %d provision calls, got %d after %d seconds",
-		count, actual, seconds,
-	)
+	})
 }
 
 //godogen:then ^the mock provider should have received at least (\d+) delete key calls within (\d+) seconds$
@@ -58,19 +51,12 @@ func (s *Suite) theMockProviderShouldHaveReceivedAtLeastDeleteKeyCallsWithin(
 	_ context.Context,
 	count, seconds int,
 ) error {
-	deadline := time.Now().Add(time.Duration(seconds) * time.Second)
-
-	var actual int
-	for time.Now().Before(deadline) {
-		actual = len(s.provider.DeleteKeyCalls)
-		if actual >= count {
+	return bddtest.Eventually(time.Duration(seconds)*time.Second, func() error {
+		if actual := len(s.provider.DeleteKeyCalls); actual >= count {
 			return nil
+		} else {
+			return fmt.Errorf("expected at least %d delete key calls, got %d",
+				count, actual)
 		}
-		time.Sleep(200 * time.Millisecond)
-	}
-
-	return fmt.Errorf(
-		"expected at least %d delete key calls, got %d after %d seconds",
-		count, actual, seconds,
-	)
+	})
 }
