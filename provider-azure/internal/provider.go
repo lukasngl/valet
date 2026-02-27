@@ -242,6 +242,7 @@ func (p *Provider) graphRequest(
 		return nil, fmt.Errorf("creating request: %w", err)
 	}
 
+	// Skip auth when pre-configured via WithHTTPClient (e.g. tests).
 	if p.cred != nil {
 		token, err := p.cred.GetToken(ctx, policy.TokenRequestOptions{
 			Scopes: []string{"https://graph.microsoft.com/.default"},
