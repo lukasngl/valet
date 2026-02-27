@@ -64,6 +64,7 @@ func (r *Reconciler[O]) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 
 	// Validate before any work — don't retry, wait for spec change.
 	if err := obj.Validate(); err != nil {
+		log.FromContext(ctx).Error(err, "validation failed")
 		obj.GetStatus().SetFailed(obj.GetGeneration(), fmt.Errorf("invalid config: %w", err))
 		if updateErr := r.Status().Update(ctx, obj); updateErr != nil {
 			return ctrl.Result{}, updateErr
@@ -88,9 +89,6 @@ func (r *Reconciler[O]) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 // handleRenewal provisions new credentials, writes them to the output secret,
 // updates the CRD status to Ready, and schedules the next reconciliation.
 func (r *Reconciler[O]) handleRenewal(ctx context.Context, obj O) (ctrl.Result, error) {
-	log := log.FromContext(ctx)
-
-	log.Info("provisioning credentials")
 	result, err := r.Provider.Provision(ctx, obj)
 	if err != nil {
 		return r.failStatus(ctx, obj, fmt.Errorf("provisioning failed: %w", err))
@@ -104,8 +102,6 @@ func (r *Reconciler[O]) handleRenewal(ctx context.Context, obj O) (ctrl.Result, 
 	if err := r.Status().Update(ctx, obj); err != nil {
 		return ctrl.Result{}, err
 	}
-
-	log.Info("credentials provisioned", "keyId", result.KeyID, "validUntil", result.ValidUntil)
 
 	return r.scheduleNext(obj), nil
 }

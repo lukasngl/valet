@@ -16,6 +16,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	"sigs.k8s.io/controller-runtime/pkg/metrics"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 )
@@ -55,17 +56,20 @@ func main() {
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
 
 func run() error {
-	opts := zap.Options{Development: true}
+	// Logging
+	opts := zap.Options{Development: false}
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
 	setupLog := ctrl.Log.WithName("setup")
 
+	// Scheme
 	scheme := runtime.NewScheme()
 	utilruntime.Must(corev1.AddToScheme(scheme))
 	utilruntime.Must(v1alpha1.AddToScheme(scheme))
 
+	// TLS
 	tlsOpts := []func(*tls.Config){}
 	if !*enableHTTP2 {
 		tlsOpts = append(tlsOpts, func(c *tls.Config) {
@@ -73,7 +77,8 @@ func run() error {
 		})
 	}
 
-	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
+	// Manager
+	mgrOpts := ctrl.Options{
 		Scheme: scheme,
 		Metrics: metricsserver.Options{
 			BindAddress: *metricsAddr,
@@ -83,20 +88,25 @@ func run() error {
 		HealthProbeBindAddress: *probeAddr,
 		LeaderElection:         *enableLeaderElection,
 		LeaderElectionID:       "provider-mock.valet.ngl.cx",
-	})
+	}
+
+	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), mgrOpts)
 	if err != nil {
 		return fmt.Errorf("creating manager: %w", err)
 	}
 
+	// Controller
 	reconciler := &framework.Reconciler[*v1alpha1.ClientSecret]{
 		Client:   mgr.GetClient(),
 		Scheme:   mgr.GetScheme(),
-		Provider: mock.NewProvider(),
+		Provider: framework.Instrument(mock.NewProvider(), metrics.Registry),
 	}
+
 	if err := reconciler.SetupWithManager(mgr); err != nil {
 		return fmt.Errorf("setting up controller: %w", err)
 	}
 
+	// Health probes
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
 		return fmt.Errorf("setting up health check: %w", err)
 	}
@@ -105,5 +115,6 @@ func run() error {
 	}
 
 	setupLog.Info("starting manager", "version", version)
+
 	return mgr.Start(ctrl.SetupSignalHandler())
 }

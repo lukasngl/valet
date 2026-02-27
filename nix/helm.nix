@@ -49,13 +49,14 @@
             dontUnpack = true;
             outputHashAlgo = "sha256";
             outputHashMode = "recursive";
-            outputHash = "sha256-4Ds3c2yO5MIA5lX0DCecFljilyXpsWZoh6gdyc7R/7I=";
+            outputHash = "sha256-CGXEESfwMztLuCJcsvsGa5xwzAen+7J/LMDa0qCpn7c=";
             nativeBuildInputs = [ pkgs.cacert ];
             buildPhase =
               let
                 base = "https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.32.0-standalone-strict";
                 schemas = [
                   "deployment-apps-v1"
+                  "service-v1"
                   "serviceaccount-v1"
                   "clusterrole-rbac-v1"
                   "clusterrolebinding-rbac-v1"
