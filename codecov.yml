@@ -1,2 +1,15 @@
 ignore:
   - "*/cmd/main.go"
+
+coverage:
+  status:
+    project:
+      app:
+        paths:
+          - "!**/test/"
+          - "!**/bddtest/"
+      tests:
+        paths:
+          - "**/test/"
+          - "**/bddtest/"
+        informational: true
