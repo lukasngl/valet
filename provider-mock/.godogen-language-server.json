@@ -1,0 +1,7 @@
+{
+  "stepPatterns": [
+    "../framework/bddtest/**/*.go",
+    "test/e2e/**/*.go",
+    "features/**/*.feature"
+  ]
+}
