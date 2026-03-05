@@ -44,11 +44,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1772008734,
-        "narHash": "sha256-yI3sTotHZeY0Pwtc5P20JQSfHr/ZHX2LG6OuToTYE84=",
+        "lastModified": 1772726471,
+        "narHash": "sha256-pI/LzP6C3qAh7wA50YyZ4r25Qx+Nw5x+6VO5HvuU0ek=",
         "owner": "lukasngl",
         "repo": "godogen",
-        "rev": "04e25c6aa9c677971b91b7114b11313cca97acb5",
+        "rev": "fa67ecbb9114e6fb0cf9c550af03c23b01a96e0f",
         "type": "github"
       },
       "original": {
