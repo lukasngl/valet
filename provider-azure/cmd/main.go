@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/go-logr/logr"
 	"github.com/lukasngl/valet/framework"
 	"github.com/lukasngl/valet/provider-azure/api/v1alpha1"
 	"github.com/lukasngl/valet/provider-azure/internal"
@@ -16,7 +17,6 @@ import (
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
-	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/metrics"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
@@ -36,12 +36,17 @@ var (
 		"Health probe bind address.",
 	)
 	enableLeaderElection = flag.Bool("leader-elect", false, "Enable leader election.")
-	enableHTTP2          = flag.Bool(
+	enableHTTP2 = flag.Bool(
 		"enable-http2",
 		false,
 		"Enable HTTP/2 for metrics and webhooks.",
 	)
+	logHandler framework.LogHandler
 )
+
+func init() {
+	flag.Var(&logHandler, "log-level", "Log level (debug, info, warn, error).")
+}
 
 func main() {
 	if err := run(); err != nil {
@@ -58,10 +63,8 @@ func main() {
 
 func run() error {
 	// Logging
-	opts := zap.Options{Development: false}
-	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
-	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
+	ctrl.SetLogger(logr.FromSlogHandler(&logHandler))
 
 	setupLog := ctrl.Log.WithName("setup")
 
